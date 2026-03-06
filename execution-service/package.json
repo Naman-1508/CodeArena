@@ -1,0 +1,23 @@
+{
+  "name": "execution-service",
+  "version": "1.0.0",
+  "main": "src/worker.js",
+  "scripts": {
+    "start": "node src/worker.js",
+    "dev": "node --watch src/worker.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "bullmq": "^5.70.1",
+    "dotenv": "^17.3.1",
+    "ioredis": "^5.10.0",
+    "uuid": "^13.0.0"
+  },
+  "devDependencies": {
+    "tsconfig-paths": "^4.2.0"
+  },
+  "type": "module"
+}
