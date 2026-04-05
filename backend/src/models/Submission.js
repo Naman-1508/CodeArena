@@ -20,6 +20,7 @@ const SubmissionSchema = new Schema({
   problemId: { type: Schema.Types.ObjectId, ref: 'Problem', required: true, index: true },
   code: { type: String, required: true },
   language: { type: String, required: true },
+  isRun: { type: Boolean, default: false },
   status: { type: String, enum: ['Pending', 'Pass', 'Fail', 'Error'], default: 'Pending' },
   runtimeMs: { type: Number, default: 0 },
   memoryKb: { type: Number, default: 0 },

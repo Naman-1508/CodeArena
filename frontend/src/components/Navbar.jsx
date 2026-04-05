@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useState, useEffect } from 'react';
-import { Code2, LayoutDashboard, Target, Users, Flame, LogOut, CodeSquare, BookOpen, Trophy, Zap } from 'lucide-react';
+import { Code2, LayoutDashboard, Target, Users, Flame, LogOut, CodeSquare, BookOpen, Trophy, Zap, ShieldAlert } from 'lucide-react';
 import axios from 'axios';
 
 export default function Navbar() {
@@ -27,7 +27,7 @@ export default function Navbar() {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    navigate('/login');
+    window.location.href = '/login';
   };
 
   const [liveStats, setLiveStats] = useState({ xp: 0, streak: 0, level: 1 });
@@ -53,6 +53,10 @@ export default function Navbar() {
     { path: '/leaderboard', label: 'Leaderboard', icon: Trophy },
     { path: '/interview', label: 'Interview', icon: Users },
   ];
+
+  if (user.role === 'Admin') {
+    navLinks.push({ path: '/admin', label: 'Admin Panel', icon: ShieldAlert });
+  }
 
   return (
     <nav className="h-16 border-b border-white/10 bg-[#0a0a0a]/80 backdrop-blur-xl sticky top-0 z-50 px-6 flex items-center justify-between shrink-0">

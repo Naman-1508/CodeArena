@@ -1,5 +1,5 @@
 import express from 'express';
-import { getProblems, getProblem, submitProblem, getSubmission, proposeProblem } from '../controllers/problemController.js';
+import { getProblems, getProblem, submitProblem, getSubmission, proposeProblem, getProposals, approveProposal, askAIHint } from '../controllers/problemController.js';
 import { protect } from '../middlewares/auth.js';
 import Problem from '../models/Problem.js';
 import Submission from '../models/Submission.js';
@@ -10,7 +10,10 @@ const router = express.Router();
 router.get('/problems', getProblems);
 router.get('/problems/:slug', getProblem);
 router.post('/problems/propose', protect, proposeProblem);
+router.get('/problems/admin/proposals', protect, getProposals);
+router.post('/problems/admin/proposals/:id/approve', protect, approveProposal);
 router.post('/problems/:id/submit', protect, submitProblem);
+router.post('/problems/:slug/ask-ai', protect, askAIHint);
 router.get('/submissions/:id', protect, getSubmission);
 
 // Daily Challenge - deterministic selection via day-of-year seed

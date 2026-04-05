@@ -24,8 +24,8 @@ export const startJobListener = () => {
       submission.testResults = result.testResults || [];
       await submission.save();
 
-      // Trigger gamification if passed
-      if (result.success) {
+      // Trigger gamification if passed and it's a real Submission (not just a Run)
+      if (result.success && !submission.isRun) {
         const problem = await Problem.findById(submission.problemId);
         if (problem) {
           // Check if first attempt

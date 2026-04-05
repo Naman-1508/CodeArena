@@ -12,7 +12,7 @@ export default function Arena() {
   const [problem, setProblem] = useState(null);
   const [loading, setLoading] = useState(true);
   
-  const [language, setLanguage] = useState('node');
+  const [language, setLanguage] = useState('java');
   const [code, setCode] = useState('');
   
   const [showLangDropdown, setShowLangDropdown] = useState(false);
@@ -31,7 +31,43 @@ export default function Arena() {
   // Monaco editor refs for format / reset actions
   const editorRef = useRef(null);
   const monacoRef = useRef(null);
-  
+
+  // Resizable panels
+  const [hSplit, setHSplit] = useState(45); // left panel % width
+  const [vSplit, setVSplit] = useState(65); // editor % height in right panel
+  const isDraggingH = useRef(false);
+  const isDraggingV = useRef(false);
+  const containerRef = useRef(null);
+  const rightPanelRef = useRef(null);
+
+  const startDragH = (e) => {
+    e.preventDefault();
+    isDraggingH.current = true;
+    const onMove = (ev) => {
+      if (!isDraggingH.current || !containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const pct = ((ev.clientX - rect.left) / rect.width) * 100;
+      setHSplit(Math.min(75, Math.max(20, pct)));
+    };
+    const onUp = () => { isDraggingH.current = false; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
+
+  const startDragV = (e) => {
+    e.preventDefault();
+    isDraggingV.current = true;
+    const onMove = (ev) => {
+      if (!isDraggingV.current || !rightPanelRef.current) return;
+      const rect = rightPanelRef.current.getBoundingClientRect();
+      const pct = ((ev.clientY - rect.top) / rect.height) * 100;
+      setVSplit(Math.min(85, Math.max(20, pct)));
+    };
+    const onUp = () => { isDraggingV.current = false; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
+
   const [output, setOutput] = useState({
     status: 'idle',
     message: 'Run your code to see results here.',
@@ -49,6 +85,10 @@ export default function Arena() {
   const [revealedHints, setRevealedHints] = useState(new Set()); // which hint levels have been unlocked
   const [expandedTest, setExpandedTest] = useState(null); // for diagnostic panel
 
+  // AI Hint state
+  const [aiHintText, setAiHintText] = useState('');
+  const [askingAI, setAskingAI] = useState(false);
+
   // Fetch problem on mount + prefetch hints
   useEffect(() => {
     const fetchProblem = async () => {
@@ -58,11 +98,21 @@ export default function Arena() {
         const response = await axios.get(`http://localhost:5000/api/v1/problems/${targetSlug}`);
         setProblem(response.data);
         
-        let initialTemplate = response.data.initialCode || `function solution() {\n    // Write your code here\n}`;
-        if (typeof initialTemplate === 'string') {
-          initialTemplate = initialTemplate.replace(/\\n/g, '\n').replace(/\\t/g, '\t');
+        let initialJsTemplate = response.data.initialCode || `function solution() {\n    // Write your code here\n}`;
+        if (typeof initialJsTemplate === 'string') {
+          initialJsTemplate = initialJsTemplate.replace(/\\n/g, '\n').replace(/\\t/g, '\t');
         }
-        setCode(language === 'node' ? initialTemplate : STARTER_CODE[language] || initialTemplate);
+        
+        // Since default is java, just use the built-in java fallback if java is selected
+        if (language === 'node') {
+          setCode(initialJsTemplate);
+        } else if (language === 'java') {
+          setCode(`import java.util.*;\n\nclass Solution {\n    public Object solution() {\n        // Write your code here\n        return null;\n    }\n}`);
+        } else {
+           // We will rely on the STARTER_CODE updating and setting it via useEffect or manual mapping
+          setCode(""); // temporary until the next effect or just use same strings
+        }
+        
         setOutput({ status: 'idle', message: 'Run your code to see results here.', details: null, earnedXp: 0, passedCount: 0, totalCount: 0, runtimeMs: 0, testResults: [] });
 
         // Prefetch hints if available (non-blocking)
@@ -82,15 +132,15 @@ export default function Arena() {
   }, [slug]);
 
   const STARTER_CODE = useMemo(() => {
-    let rawNode = problem?.initialCode || `function solution() {\n    // Your code here\n}`;
+    let rawNode = problem?.initialCode || `function solution() {\n    // Your code here\n    return null;\n}`;
     if (typeof rawNode === 'string') {
       rawNode = rawNode.replace(/\\n/g, '\n').replace(/\\t/g, '\t');
     }
     return {
       node: rawNode,
-      python: `def solution():\n    # Write your code here\n    pass`,
-      java: `class Solution {\n    public void solution() {\n        // Write your code here\n    }\n}`,
-      cpp: `class Solution {\npublic:\n    void solution() {\n        // Write your code here\n    }\n};`,
+      python: `def solution():\n    # Write your code here\n    return None`,
+      java: `import java.util.*;\n\nclass Solution {\n    public Object solution() {\n        // Write your code here\n        return null;\n    }\n}`,
+      cpp: `#include <bits/stdc++.h>\nusing namespace std;\n\nclass Solution {\npublic:\n    auto solution() {\n        // Write your code here\n        return 0;\n    }\n};`,
     };
   }, [problem]);
 
@@ -138,7 +188,7 @@ export default function Arena() {
           runtimeMs: runtimeMs || 0,
           testResults: sub.testResults || [],
         });
-        setActiveTab('diagnostics');
+        setActiveTab((sub.testResults && sub.testResults.length) ? 'diagnostics' : 'output');
       } else if (status === 'Fail') {
         setOutput({
           status: 'error',
@@ -150,7 +200,7 @@ export default function Arena() {
           runtimeMs: runtimeMs || 0,
           testResults: sub.testResults || [],
         });
-        setActiveTab('diagnostics');
+        setActiveTab((sub.testResults && sub.testResults.length) ? 'diagnostics' : 'output');
       } else if (status === 'Error') {
         setOutput({
           status: 'error',
@@ -177,9 +227,11 @@ export default function Arena() {
     }
   };
 
-  const handleRunCode = async () => {
+  const handleRunCode = async (isSubmit = false) => {
     if (!problem) return;
-    setOutput({ status: 'running', message: 'Executing in secure sandbox...', details: null });
+    
+    // Change state so we know if we are running or submitting (for UI text)
+    setOutput({ status: 'running', message: isSubmit ? 'Submitting to judge...' : 'Executing in secure sandbox...', details: null, isSubmitMode: isSubmit });
     setActiveTab('output');
 
     try {
@@ -191,7 +243,8 @@ export default function Arena() {
 
       const response = await axios.post(`http://localhost:5000/api/v1/problems/${problem._id}/submit`, {
         code,
-        language
+        language,
+        type: isSubmit ? 'submit' : 'run'
       }, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -208,6 +261,26 @@ export default function Arena() {
     }
   };
 
+  const handleAskAI = async () => {
+    if (!problem || !code) return;
+    setAskingAI(true);
+    setAiHintText('');
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.post(`http://localhost:5000/api/v1/problems/${problem.slug}/ask-ai`, {
+        code,
+        language
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setAiHintText(response.data.hint);
+    } catch (err) {
+      setAiHintText(err.response?.data?.message || 'Failed to generate AI Hint. Make sure GEMINI_API_KEY is configured in backend.');
+    } finally {
+      setAskingAI(false);
+    }
+  };
+
   if (loading || !problem) {
     return (
       <div className="h-screen flex items-center justify-center bg-background">
@@ -217,7 +290,7 @@ export default function Arena() {
   }
 
   return (
-    <div className="flex-1 flex flex-col font-sans bg-[#000000]">
+    <div className="h-full flex flex-col font-sans bg-[#000000] min-h-0 overflow-hidden">
       {/* Workspace Sub-Header */}
       <header className="h-[56px] border-b border-white/5 flex items-center justify-between px-4 bg-[#0d0d0d] z-10 shrink-0 gap-4">
         {/* Left: problem identity */}
@@ -296,24 +369,34 @@ export default function Arena() {
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.97 }}
-            onClick={handleRunCode}
+            onClick={() => handleRunCode(false)}
+            disabled={output.status === 'running'}
+            className="group relative flex items-center gap-2 px-5 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-lg font-bold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden">
+            <Play className="w-3.5 h-3.5 fill-white relative z-10" />
+            <span className="relative z-10 tracking-wide">Run</span>
+          </motion.button>
+
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.97 }}
+            onClick={() => handleRunCode(true)}
             disabled={output.status === 'running'}
             className="group relative flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-white rounded-lg font-bold text-sm transition-all shadow-[0_0_20px_rgba(16,185,129,0.25)] hover:shadow-[0_0_28px_rgba(16,185,129,0.45)] disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden">
             <div className="absolute inset-0 bg-white/20 -translate-x-full group-hover:translate-x-full transition-transform duration-500" />
-            {output.status === 'running'
+            {output.status === 'running' && output.isSubmitMode
               ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin relative z-10" />
               : <Play className="w-3.5 h-3.5 fill-white relative z-10" />
             }
-            <span className="relative z-10 tracking-wide">{output.status === 'running' ? 'Runningâ€¦' : 'Run Code'}</span>
+            <span className="relative z-10 tracking-wide">{(output.status === 'running' && output.isSubmitMode) ? 'Submitting...' : 'Submit Code'}</span>
           </motion.button>
         </div>
       </header>
 
       {/* Main Workspace */}
-      <div className="flex-1 flex overflow-hidden">
+      <div ref={containerRef} className="flex-1 flex min-h-0 overflow-hidden select-none">
         
         {/* Left Panel: Problem Description */}
-        <div className="w-[45%] border-r border-white/5 flex flex-col bg-[#050505]">
+        <div style={{ width: `${hSplit}%` }} className="flex flex-col bg-[#050505] min-h-0 overflow-hidden">
           <div className="h-10 border-b border-white/5 flex items-center px-4 bg-[#0a0a0a] shrink-0 gap-4">
             <div className="py-2 border-b-2 border-primary text-xs font-bold text-white tracking-wide">
               Description
@@ -327,8 +410,30 @@ export default function Arena() {
                 Hints ({hints.length})
               </button>
             )}
+            <button onClick={handleAskAI} disabled={askingAI}
+              className="py-1 px-3 flex items-center gap-1.5 text-xs font-bold transition-all bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 border border-purple-500/20 rounded-lg disabled:opacity-50">
+              {askingAI ? <div className="w-3.5 h-3.5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" /> : <Lightbulb className="w-3.5 h-3.5" />}
+              Ask AI
+            </button>
           </div>
           <div className="p-6 overflow-y-auto custom-scrollbar flex-1 relative">
+            {/* AI Hint Panel */}
+            <AnimatePresence>
+              {(aiHintText || askingAI) && (
+                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+                  className="mb-6 bg-purple-500/5 border border-purple-500/20 rounded-xl overflow-hidden relative">
+                  <button onClick={() => setAiHintText('')} className="absolute top-2 right-2 text-slate-500 hover:text-white"><XCircle className="w-4 h-4" /></button>
+                  <div className="px-4 py-3 border-b border-purple-500/15 flex items-center gap-2">
+                    <Lightbulb className="w-4 h-4 text-purple-400" />
+                    <span className="text-xs font-bold text-purple-400">AI Teaching Assistant</span>
+                  </div>
+                  <div className="p-4 text-sm text-slate-300 leading-relaxed whitespace-pre-line">
+                    {askingAI ? 'Analyzing your code...' : aiHintText}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             {/* Hints Panel */}
             <AnimatePresence>
               {showHints && hints.length > 0 && (
@@ -399,11 +504,19 @@ export default function Arena() {
           </div>
         </div>
 
+        {/* Horizontal Drag Divider */}
+        <div
+          onMouseDown={startDragH}
+          className="w-1.5 shrink-0 bg-white/5 hover:bg-primary/50 cursor-col-resize transition-colors duration-150 group flex items-center justify-center"
+        >
+          <div className="w-px h-8 bg-white/20 group-hover:bg-primary rounded-full" />
+        </div>
+
         {/* Right Panel: Editor & Output */}
-        <div className="flex-1 flex flex-col relative w-[55%] bg-[#0d0d0d]">
+        <div ref={rightPanelRef} style={{ width: `${100 - hSplit}%` }} className="flex flex-col bg-[#0d0d0d] min-h-0 overflow-hidden">
           
           {/* Editor Area */}
-          <div className="flex-1 relative">
+          <div style={{ height: `${vSplit}%` }} className="relative overflow-hidden shrink-0">
             
             {/* Success Overlay Animation */}
             <AnimatePresence>
@@ -446,7 +559,9 @@ export default function Arena() {
                 padding: { top: 16 },
                 scrollBeyondLastLine: false,
                 smoothScrolling: true,
-                cursorBlinking: "smooth",
+                quickSuggestions: true,
+                suggestOnTriggerCharacters: true,
+                wordBasedSuggestions: "allDocuments",
                 scrollbar: {
                   vertical: "visible",
                   horizontal: "visible"
@@ -455,9 +570,16 @@ export default function Arena() {
             />
           </div>
 
+          {/* Vertical Drag Divider */}
+          <div
+            onMouseDown={startDragV}
+            className="h-1.5 shrink-0 bg-white/5 hover:bg-primary/50 cursor-row-resize transition-colors duration-150 group flex items-center justify-center"
+          >
+            <div className="h-px w-8 bg-white/20 group-hover:bg-primary rounded-full" />
+          </div>
+
           {/* Bottom Console Panel */}
-          <motion.div
-            className="h-72 border-t border-surface/50 bg-[#1e1e1e] flex flex-col shrink-0 drop-shadow-[0_-5px_15px_rgba(0,0,0,0.3)]">
+          <div style={{ height: `${100 - vSplit}%` }} className="border-t border-surface/50 bg-[#1e1e1e] flex flex-col overflow-hidden shrink-0">
             
             {/* Tabs */}
             <div className="h-10 bg-[#252526] border-b border-surface/50 flex items-center px-2">
@@ -565,24 +687,58 @@ export default function Arena() {
                   }
                   
                   {output.status === 'error' && !output.details && (
-                    <div className="text-red-400 whitespace-pre-line bg-red-400/10 p-3 rounded border border-red-400/20">
-                      {output.message}
+                    <div className="text-red-400 whitespace-pre-line bg-red-400/10 p-4 rounded-xl border border-red-400/20">
+                      <div className="font-bold flex items-center gap-2 mb-2"><XCircle className="w-4 h-4"/> Runtime Error</div>
+                      <div className="font-mono text-sm">{output.message}</div>
                     </div>
                   )}
 
                 {(output.status === 'success' || (output.status === 'error' && output.details)) && (
-                    <div className="space-y-3">
-                      <div className={`font-bold text-base flex items-center gap-2 ${output.status === 'success' ? 'text-green-500' : 'text-red-500'}`}>
-                        {output.status === 'success' ? <CheckCircle className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
-                        {output.status === 'success' ? `Accepted — ${output.passedCount}/${output.totalCount} test cases passed` : `Wrong Answer — ${output.passedCount}/${output.totalCount} passed`}
-                        {output.runtimeMs > 0 && <span className="ml-auto text-slate-400 text-xs font-normal">{output.runtimeMs}ms</span>}
+                    <div className="space-y-4 max-w-4xl">
+                      <h2 className={`text-2xl font-black tracking-tight flex items-center gap-2 ${output.status === 'success' ? 'text-green-500' : 'text-red-500'}`}>
+                        {output.status === 'success' ? 'Accepted' : 'Wrong Answer'}
+                      </h2>
+                      
+                      <div className="flex gap-4">
+                         {output.runtimeMs > 0 && (
+                           <div className="flex bg-[#1e1e1e] p-3 rounded-lg border border-white/5 gap-3 pr-8 min-w-[120px]">
+                              <div className="flex items-center justify-center text-slate-500"><Clock className="w-5 h-5"/></div>
+                              <div>
+                                 <div className="text-[10px] uppercase font-bold text-slate-500 hover:text-slate-400 transition-colors">Runtime</div>
+                                 <div className="font-bold text-white tracking-wide">{output.runtimeMs}<span className="text-slate-500 font-normal ml-0.5">ms</span></div>
+                              </div>
+                           </div>
+                         )}
+                         {output.totalCount > 0 && (
+                           <div className="flex bg-[#1e1e1e] p-3 rounded-lg border border-white/5 gap-3 pr-8 min-w-[120px]">
+                              <div className="flex items-center justify-center text-slate-500"><CheckCircle className="w-5 h-5" /></div>
+                              <div>
+                                 <div className="text-[10px] uppercase font-bold text-slate-500 hover:text-slate-400 transition-colors">Test Cases</div>
+                                 <div className="font-bold text-white tracking-wide">{output.passedCount} <span className="text-slate-500 font-normal">/ {output.totalCount}</span></div>
+                              </div>
+                           </div>
+                         )}
                       </div>
                       
-                      <div className="bg-[#1e1e1e] rounded-lg p-4 border border-white/10 shadow-inner">
-                        <div className="text-slate-400 text-xs mb-2 font-bold uppercase tracking-wider">Output:</div>
-                        <div className="whitespace-pre-wrap font-mono text-slate-300 bg-black/40 p-3 rounded border border-white/5 max-h-[200px] overflow-y-auto custom-scrollbar text-sm">
-                           {output.details || 'No output generated.'}
-                        </div>
+                      <div className="mt-6">
+                        {output.details && output.details.includes('AI Evaluation Verdict') ? (
+                          <div className="rounded-xl border border-purple-500/20 bg-purple-500/5 p-5 shadow-inner">
+                            <div className="flex items-center gap-2 mb-3">
+                              <Lightbulb className="w-5 h-5 text-purple-400" />
+                              <span className="font-black text-purple-400 text-sm tracking-wide">AI Evaluation Verdict</span>
+                            </div>
+                            <div className="prose prose-invert prose-purple max-w-none text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">
+                               {output.details.replace('🤖 AI Evaluation Verdict:\\n', '').replace('🤖 AI Evaluation Verdict:\n', '')}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="bg-[#1e1e1e] rounded-xl p-5 border border-white/5 shadow-inner">
+                            <div className="text-slate-500 text-xs text-[10px] font-bold uppercase tracking-widest mb-3">Raw Sandbox Output</div>
+                            <div className="whitespace-pre-wrap font-mono text-slate-300 bg-black/40 p-4 rounded-lg border border-white/5 max-h-[300px] overflow-y-auto custom-scrollbar text-sm">
+                               {output.details || 'No output generated.'}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -590,7 +746,7 @@ export default function Arena() {
               )}
 
             </div>
-          </motion.div>
+          </div>
         </div>
       </div>
       {/* Reset Confirmation Modal */}

@@ -28,7 +28,64 @@
   }
 }
 @layer base {
+  html, body, #root {
+    height: 100%;
+  }
   body {
     @apply bg-background text-slate-50 font-sans antialiased selection:bg-primary/30;
   }
+}
+
+/* react-split gutter overrides */
+.gutter {
+  background-color: transparent;
+  background-repeat: no-repeat;
+  background-position: 50%;
+  position: relative;
+  transition: background-color 0.15s ease;
+  z-index: 50;
+}
+
+.gutter:hover {
+  background-color: rgba(59, 130, 246, 0.5); /* primary color with opacity */
+}
+
+.gutter.gutter-horizontal {
+  background-image: url('data:image/svg+xml;utf8,<svg stroke="%23475569" stroke-width="2" fill="none" viewBox="0 0 8 18"><path d="M4 1v16M1 1v16M7 1v16"/></svg>');
+  background-size: 8px 18px;
+  cursor: col-resize;
+  border-left: 1px solid rgba(255,255,255,0.05);
+  border-right: 1px solid rgba(255,255,255,0.05);
+}
+
+.gutter.gutter-vertical {
+  background-image: url('data:image/svg+xml;utf8,<svg stroke="%23475569" stroke-width="2" fill="none" viewBox="0 0 18 8"><path d="M1 4h16M1 1h16M1 7h16"/></svg>');
+  background-size: 18px 8px;
+  cursor: row-resize;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Hide scrollbar but keep scroll functionality */
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
 }

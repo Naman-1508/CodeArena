@@ -44,12 +44,32 @@ router.get('/me/stats', protect, async (req, res) => {
         let easySolved = 0;
         let mediumSolved = 0;
         let hardSolved = 0;
+        const tagCounts = {};
 
-        uniqueSolved.forEach((difficulty) => {
-            if (difficulty === 'Easy') easySolved++;
-            if (difficulty === 'Medium') mediumSolved++;
-            if (difficulty === 'Hard') hardSolved++;
+        const solvedProblemIds = Array.from(uniqueSolved.keys());
+        
+        // Fetch the tags for the uniquely solved problems to build a strong/weak topics radar
+        const problems = await Problem.find({ _id: { $in: solvedProblemIds } }).select('difficulty tags');
+        
+        problems.forEach(p => {
+            if (p.difficulty === 'Easy') easySolved++;
+            if (p.difficulty === 'Medium') mediumSolved++;
+            if (p.difficulty === 'Hard') hardSolved++;
+            
+            p.tags.forEach(tag => {
+                tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+            });
         });
+
+        // Convert tags object to array, sorted by count
+        const topTags = Object.entries(tagCounts)
+            .map(([topic, count]) => ({ topic, count }))
+            .sort((a, b) => b.count - a.count);
+
+        // Percentile Calculation
+        const totalUsers = await User.countDocuments();
+        const usersBelow = await User.countDocuments({ xp: { $lt: user.xp || 0 } });
+        const percentile = totalUsers > 1 ? Math.round((usersBelow / totalUsers) * 100) : 100;
 
         const stats = {
             username: user.username,
@@ -60,7 +80,9 @@ router.get('/me/stats', protect, async (req, res) => {
             mediumSolved,
             hardSolved,
             heatmap: heatmapData,
-            solvedIds: Array.from(uniqueSolved.keys())
+            solvedIds: solvedProblemIds,
+            percentile,
+            topTags: topTags.slice(0, 10) // Top 10 concepts mastered
         };
 
         res.status(200).json(stats);
@@ -69,8 +91,6 @@ router.get('/me/stats', protect, async (req, res) => {
         res.status(500).json({ message: 'Server error retrieving stats' });
     }
 });
-
-export default router;
 
 // GET /api/v1/users/me/submissions -> paginated submission history for the current user
 router.get('/me/submissions', protect, async (req, res) => {
@@ -115,3 +135,18 @@ router.get('/leaderboard', async (req, res) => {
         res.status(500).json({ message: 'Server error fetching leaderboard' });
     }
 });
+
+// GET /api/v1/users/admin/all-users -> Admin route to fetch all users
+router.get('/admin/all-users', protect, async (req, res) => {
+    try {
+        if (req.user.role !== 'Admin') {
+            return res.status(403).json({ message: 'Not authorized as admin' });
+        }
+        const users = await User.find().select('username email role xp level').sort({ createdAt: -1 });
+        res.json(users);
+    } catch (error) {
+        res.status(500).json({ message: 'Server error fetching users' });
+    }
+});
+
+export default router;

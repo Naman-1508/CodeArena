@@ -25,6 +25,8 @@ const UserSchema = new Schema({
   longestStreak: { type: Number, default: 0 },
   lastActiveDate: { type: Date, default: null },
   bookmarks: [{ type: Schema.Types.ObjectId, ref: 'Problem' }],
+  resetPasswordToken: { type: String, default: null },
+  resetPasswordExpire: { type: Date, default: null },
 }, { timestamps: true });
 
 export default mongoose.model('User', UserSchema);

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Flame, Trophy, Target, Zap, BookOpen, ArrowRight, X, Send, ChevronRight, Lock, CheckCircle, Clock, Code2, Star } from 'lucide-react';
+import { Flame, Trophy, Target, Zap, BookOpen, ArrowRight, X, Send, ChevronRight, Lock, CheckCircle, Clock, Code2, Star, TrendingUp, Users, BarChart2, Medal } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 import SubmissionHeatmap from '../components/SubmissionHeatmap';
@@ -21,6 +21,8 @@ export default function Dashboard() {
   const [statsLoading, setStatsLoading] = useState(true);
   const [dailyChallenge, setDailyChallenge] = useState(null);
   const [recentSubmissions, setRecentSubmissions] = useState([]);
+  const [topUsers, setTopUsers] = useState([]);
+  const [myRank, setMyRank] = useState(null);
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -30,14 +32,15 @@ export default function Dashboard() {
           setStatsLoading(false);
           return;
         }
-        const [statsRes, dailyRes, submissionsRes] = await Promise.all([
+        const [statsRes, dailyRes, submissionsRes, leaderboardRes] = await Promise.all([
           axios.get('http://localhost:5000/api/v1/users/me/stats', {
             headers: { Authorization: `Bearer ${token}` }
           }),
           axios.get('http://localhost:5000/api/v1/daily').catch(() => ({ data: null })),
           axios.get('http://localhost:5000/api/v1/users/me/submissions?limit=5', {
             headers: { Authorization: `Bearer ${token}` }
-          }).catch(() => ({ data: { submissions: [] } }))
+          }).catch(() => ({ data: { submissions: [] } })),
+          axios.get('http://localhost:5000/api/v1/users/leaderboard').catch(() => ({ data: [] }))
         ]);
         
         const nextXp = statsRes.data.level * 1000;
@@ -51,11 +54,19 @@ export default function Dashboard() {
           easySolved: statsRes.data.easySolved || 0,
           mediumSolved: statsRes.data.mediumSolved || 0,
           hardSolved: statsRes.data.hardSolved || 0,
-          heatmap: statsRes.data.heatmap || []
+          heatmap: statsRes.data.heatmap || [],
+          percentile: statsRes.data.percentile !== undefined ? statsRes.data.percentile : 0,
+          topTags: statsRes.data.topTags || []
         });
 
         if (dailyRes.data?.problem) setDailyChallenge(dailyRes.data);
         if (submissionsRes.data?.submissions) setRecentSubmissions(submissionsRes.data.submissions);
+        if (leaderboardRes.data?.length) {
+          const top5 = leaderboardRes.data.slice(0, 5);
+          setTopUsers(top5);
+          const myEntry = leaderboardRes.data.find(u => u.username === statsRes.data.username);
+          if (myEntry) setMyRank(myEntry.rank);
+        }
       } catch (err) {
         console.error('Error fetching dashboard stats:', err);
       } finally {
@@ -129,8 +140,15 @@ export default function Dashboard() {
               </div>
             </div>
             <div>
-              <h1 className="text-3xl font-extrabold tracking-tight text-white mb-1">{userStats.username}</h1>
-              <span className="px-3 py-0.5 bg-primary/10 text-primary border border-primary/20 rounded-full text-xs font-bold tracking-widest uppercase">Gold Tier</span>
+              <h1 className="text-3xl font-extrabold tracking-tight text-white mb-2">{userStats.username}</h1>
+              <div className="flex gap-2 items-center flex-wrap">
+                <span className="px-3 py-0.5 bg-primary/10 text-primary border border-primary/20 rounded-full text-xs font-bold tracking-widest uppercase">Gold Tier</span>
+                {!statsLoading && userStats.percentile > 0 && (
+                  <span className="px-3 py-0.5 bg-violet-500/10 text-violet-400 border border-violet-500/20 rounded-full text-xs font-bold uppercase tracking-widest flex items-center gap-1">
+                    <Trophy className="w-3 h-3" /> Top {100 - userStats.percentile}%
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 
@@ -206,6 +224,25 @@ export default function Dashboard() {
           </div>
         </motion.div>
       </div>
+
+      {/* ── ADVANCED ANALYTICS ROW ────────────────────────────────────── */}
+      {userStats.topTags && userStats.topTags.length > 0 && (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
+          className="mb-8 p-7 bg-[#0a0a0a] border border-white/5 rounded-3xl">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="p-2.5 bg-pink-500/10 border border-pink-500/20 rounded-xl"><BookOpen className="w-5 h-5 text-pink-400" /></div>
+            <h2 className="text-lg font-bold">Strongest Topics</h2>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            {userStats.topTags.map((tag, idx) => (
+              <div key={idx} className="flex items-center gap-2 px-4 py-2 bg-white/5 rounded-xl border border-white/10 hover:border-primary/30 transition-colors">
+                <span className="text-sm text-slate-300 font-medium">{tag.topic}</span>
+                <span className="text-xs font-black text-primary px-2 py-0.5 bg-primary/10 rounded-md">{tag.count}</span>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
 
       {/* ── ACTIVITY HEATMAP ────────────────────────────────────────── */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }} className="mb-8">
@@ -286,6 +323,101 @@ export default function Dashboard() {
           </div>
         </motion.div>
       )}
+      {/* ── PEER ANALYTICS / LEADERBOARD COMPARISON ─────────────────── */}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.38 }}
+        className="mb-8 grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+        {/* Percentile Gauge Card */}
+        <div className="bg-[#0a0a0a] border border-white/5 rounded-3xl p-7 flex flex-col items-center justify-center relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-violet-900/10 to-transparent" />
+          <div className="relative z-10 text-center">
+            <div className="p-3 bg-violet-500/10 border border-violet-500/20 rounded-2xl inline-flex mb-4">
+              <BarChart2 className="w-6 h-6 text-violet-400" />
+            </div>
+            <div className="text-5xl font-black text-white mb-1">
+              {statsLoading ? '—' : `Top ${100 - (userStats.percentile || 0)}%`}
+            </div>
+            <p className="text-slate-500 text-sm">Global Percentile</p>
+            <div className="mt-5 w-full bg-black/50 rounded-full h-2 border border-white/5">
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${userStats.percentile || 0}%` }}
+                transition={{ duration: 1.5, ease: 'easeOut' }}
+                className="h-full bg-gradient-to-r from-violet-500 to-purple-400 rounded-full"
+              />
+            </div>
+            <p className="text-xs text-slate-600 mt-2">Better than {userStats.percentile || 0}% of all users</p>
+          </div>
+        </div>
+
+        {/* Your Rank */}
+        <div className="bg-[#0a0a0a] border border-white/5 rounded-3xl p-7 flex flex-col justify-center relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-amber-900/10 to-transparent" />
+          <div className="relative z-10">
+            <div className="flex items-center gap-3 mb-5">
+              <div className="p-2.5 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+                <Trophy className="w-5 h-5 text-amber-400" />
+              </div>
+              <h2 className="text-lg font-bold">Your Standing</h2>
+            </div>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400 text-sm">Global Rank</span>
+                <span className="text-white font-black text-xl">#{statsLoading ? '—' : (myRank || '—')}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400 text-sm">Total XP</span>
+                <span className="text-amber-400 font-bold">{statsLoading ? '—' : userStats.xp} XP</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400 text-sm">Problems Solved</span>
+                <span className="text-green-400 font-bold">{statsLoading ? '—' : (userStats.easySolved + userStats.mediumSolved + userStats.hardSolved)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-400 text-sm">Current Streak</span>
+                <span className="text-orange-400 font-bold">{statsLoading ? '—' : userStats.streak} days 🔥</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Top 5 Users */}
+        <div className="bg-[#0a0a0a] border border-white/5 rounded-3xl p-7 flex flex-col relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-cyan-900/10 to-transparent" />
+          <div className="relative z-10 flex flex-col h-full">
+            <div className="flex items-center gap-3 mb-5">
+              <div className="p-2.5 bg-accent/10 border border-accent/20 rounded-xl">
+                <Users className="w-5 h-5 text-accent" />
+              </div>
+              <h2 className="text-lg font-bold">Top Coders</h2>
+              <Link to="/leaderboard" className="ml-auto text-xs text-primary hover:underline">See All</Link>
+            </div>
+            <div className="space-y-2 flex-1">
+              {topUsers.length === 0 ? (
+                <p className="text-slate-600 text-sm">No data yet</p>
+              ) : topUsers.map((u, i) => {
+                const isMe = u.username === userStats.username;
+                const medals = ['🥇', '🥈', '🥉'];
+                return (
+                  <div key={u.username} className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-colors ${
+                    isMe ? 'bg-primary/10 border border-primary/20' : 'hover:bg-white/3'
+                  }`}>
+                    <span className="text-lg w-6 text-center">{medals[i] || `${i+1}`}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm font-bold truncate ${isMe ? 'text-primary' : 'text-white'}`}>
+                        {u.username} {isMe && <span className="text-xs font-normal text-primary/60">(you)</span>}
+                      </p>
+                      <p className="text-xs text-slate-500">Level {u.level}</p>
+                    </div>
+                    <span className="text-xs font-black text-accent whitespace-nowrap">{u.xp} XP</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </motion.div>
+
       {/* ── QUICK ACTIONS ───────────────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Link to="/problems" className="block group">

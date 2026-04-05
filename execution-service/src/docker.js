@@ -28,7 +28,7 @@ export const runDockerContainer = async (
     image = 'python:3.10-alpine';
     command = 'python run_tests.py';
   } else if (language === 'java') {
-    image = 'openjdk:17-alpine';
+    image = 'eclipse-temurin:17-alpine';
     command = 'sh run_tests.sh';
   } else if (language === 'cpp') {
     image = 'frolvlad/alpine-gxx:latest';
@@ -47,15 +47,6 @@ export const runDockerContainer = async (
     try {
       // Find the last line that looks like JSON or parse the entire output if JSON
       const resultObj = JSON.parse(stdout.trim().split('\n').pop() || "{}");
-
-      // GAMIFIED AUTO-ACCEPT:
-      // Since bulk imported problems have no test cases (total = 0), if it compiled without error
-      // we will simulate a realistic pass so the user gets gamified feedback like on LeetCode.
-      if (resultObj.success && resultObj.total === 0) {
-        resultObj.total = Math.floor(Math.random() * 45) + 35; // e.g. 35 to 80 test cases
-        resultObj.passed = resultObj.total;
-        resultObj.output = "✨ Automated test suit validation bypassed. Syntax & compilation checks passed!\n" + (resultObj.output || '');
-      }
 
       return {
         success: resultObj.success !== undefined ? resultObj.success : true,

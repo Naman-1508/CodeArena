@@ -7,6 +7,7 @@ const connectionConfig = { host: '127.0.0.1', port: 6379 };
 
 import { createTempDirectory, writeFilesToTemp, cleanupTempDirectory } from './utils.js';
 import { runDockerContainer } from './docker.js';
+import { evaluateCodeWithAI } from './aiValidator.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -26,7 +27,15 @@ import path from 'path';
 const worker = new Worker('code-execution', async (job) => {
   console.log(`Processing execution job ${job.id} for user ${job.data.userId}`);
 
-  const { code, language, testCases } = job.data;
+  const { code, language, testCases, problemTitle, problemDescription } = job.data;
+
+  // AI INTERVENTION: If there are absolutely no test cases (like for bulk seeded problems),
+  // we bypass Docker entirely and hit the Gemini AI to evaluate the code's logic.
+  if (!testCases || testCases.length === 0) {
+    console.log(`[Job ${job.id}] No test cases found! Diverting to AI Code Evaluator...`);
+    const aiResult = await evaluateCodeWithAI(language, code, problemTitle || 'Unknown Problem', problemDescription || 'Evaluate general logic and correctness.');
+    return aiResult;
+  }
 
   // 1. Setup isolated space
   const tempPath = await createTempDirectory('job-');
