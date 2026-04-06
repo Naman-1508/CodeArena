@@ -33,14 +33,14 @@ export default function Dashboard() {
           return;
         }
         const [statsRes, dailyRes, submissionsRes, leaderboardRes] = await Promise.all([
-          axios.get('http://localhost:5000/api/v1/users/me/stats', {
+          axios.get(`${import.meta.env.VITE_API_URL}/api/v1/users/me/stats`, {
             headers: { Authorization: `Bearer ${token}` }
           }),
-          axios.get('http://localhost:5000/api/v1/daily').catch(() => ({ data: null })),
-          axios.get('http://localhost:5000/api/v1/users/me/submissions?limit=5', {
+          axios.get(`${import.meta.env.VITE_API_URL}/api/v1/daily`).catch(() => ({ data: null })),
+          axios.get(`${import.meta.env.VITE_API_URL}/api/v1/users/me/submissions?limit=5`, {
             headers: { Authorization: `Bearer ${token}` }
           }).catch(() => ({ data: { submissions: [] } })),
-          axios.get('http://localhost:5000/api/v1/users/leaderboard').catch(() => ({ data: [] }))
+          axios.get(`${import.meta.env.VITE_API_URL}/api/v1/users/leaderboard`).catch(() => ({ data: [] }))
         ]);
         
         const nextXp = statsRes.data.level * 1000;
@@ -95,7 +95,7 @@ export default function Dashboard() {
     setProposing(true);
     try {
       const token = localStorage.getItem('token');
-      await axios.post('http://localhost:5000/api/v1/problems/propose', {
+      await axios.post(`${import.meta.env.VITE_API_URL}/api/v1/problems/propose`, {
         ...proposeForm,
         tags: proposeForm.tags.split(',').map(t => t.trim()).filter(Boolean),
       }, { headers: { Authorization: `Bearer ${token}` } });

@@ -18,7 +18,7 @@ export default function InterviewLobby() {
       const token = localStorage.getItem('token');
       if (!token) throw new Error('You must be logged in to create a room.');
 
-      const response = await axios.post('http://localhost:5000/api/v1/interviews/create', {}, {
+      const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/v1/interviews/create`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
       

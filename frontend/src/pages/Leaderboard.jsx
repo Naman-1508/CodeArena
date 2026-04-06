@@ -28,7 +28,7 @@ export default function Leaderboard() {
   useEffect(() => {
     const fetchLeaderboard = async () => {
       try {
-        const res = await axios.get('http://localhost:5000/api/v1/users/leaderboard');
+        const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/v1/users/leaderboard`);
         setLeaders(res.data);
         if (currentUser?.username) {
           const myEntry = res.data.find(u => u.username === currentUser.username);

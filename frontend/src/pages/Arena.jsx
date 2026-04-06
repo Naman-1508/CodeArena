@@ -95,7 +95,7 @@ export default function Arena() {
       setLoading(true);
       try {
         const targetSlug = slug || 'two-sum';
-        const response = await axios.get(`http://localhost:5000/api/v1/problems/${targetSlug}`);
+        const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/v1/problems/${targetSlug}`);
         setProblem(response.data);
         
         let initialJsTemplate = response.data.initialCode || `function solution() {\n    // Write your code here\n}`;
@@ -118,7 +118,7 @@ export default function Arena() {
         // Prefetch hints if available (non-blocking)
         const token = localStorage.getItem('token');
         if (token) {
-          axios.get(`http://localhost:5000/api/v1/problems/${targetSlug}/hints`, {
+          axios.get(`${import.meta.env.VITE_API_URL}/api/v1/problems/${targetSlug}/hints`, {
             headers: { Authorization: `Bearer ${token}` }
           }).then(r => setHints(r.data.hints || [])).catch(() => {});
         }
@@ -168,7 +168,7 @@ export default function Arena() {
   const pollSubmission = async (submissionId) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`http://localhost:5000/api/v1/submissions/${submissionId}`, {
+      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/v1/submissions/${submissionId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -241,7 +241,7 @@ export default function Arena() {
         return;
       }
 
-      const response = await axios.post(`http://localhost:5000/api/v1/problems/${problem._id}/submit`, {
+      const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/v1/problems/${problem._id}/submit`, {
         code,
         language,
         type: isSubmit ? 'submit' : 'run'
@@ -267,7 +267,7 @@ export default function Arena() {
     setAiHintText('');
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.post(`http://localhost:5000/api/v1/problems/${problem.slug}/ask-ai`, {
+      const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/v1/problems/${problem.slug}/ask-ai`, {
         code,
         language
       }, {

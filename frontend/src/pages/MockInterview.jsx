@@ -75,12 +75,12 @@ export default function MockInterview() {
     setLoading(true);
     setError('');
     try {
-      const res = await axios.get(`http://localhost:5000/api/v1/random?difficulty=${difficulty}`);
+      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/v1/random?difficulty=${difficulty}`);
       const p = res.data;
       setProblem(p);
       
       // Fetch full problem for description + initial code
-      const fullRes = await axios.get(`http://localhost:5000/api/v1/problems/${p.slug}`);
+      const fullRes = await axios.get(`${import.meta.env.VITE_API_URL}/api/v1/problems/${p.slug}`);
       const full = fullRes.data;
       let initCode = full.initialCode || STARTER[language];
       if (typeof initCode === 'string') {
@@ -104,7 +104,7 @@ export default function MockInterview() {
     let attempts = 0;
     while (attempts < 30) {
       try {
-        const res = await axios.get(`http://localhost:5000/api/v1/submissions/${submissionId}`, {
+        const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/v1/submissions/${submissionId}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         const sub = res.data;
@@ -138,7 +138,7 @@ export default function MockInterview() {
     if (!token) return;
     try {
       const started = Date.now();
-      const res = await axios.post(`http://localhost:5000/api/v1/problems/${problem._id}/submit`,
+      const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/v1/problems/${problem._id}/submit`,
         { code, language }, { headers: { Authorization: `Bearer ${token}` } }
       );
       await pollResult(res.data.submissionId, started);

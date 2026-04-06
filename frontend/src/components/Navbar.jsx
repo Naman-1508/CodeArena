@@ -37,7 +37,7 @@ export default function Navbar() {
       const t = localStorage.getItem('token');
       if (!t) return;
       try {
-        const res = await axios.get('http://localhost:5000/api/v1/users/me/stats', {
+        const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/v1/users/me/stats`, {
           headers: { Authorization: `Bearer ${t}` }
         });
         setLiveStats({ xp: res.data.xp || 0, streak: res.data.streak || 0, level: res.data.level || 1 });

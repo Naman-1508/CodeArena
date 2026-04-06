@@ -22,7 +22,7 @@ export default function Login() {
     setError('');
     setLoading(true);
     try {
-      const response = await axios.post('http://localhost:5000/api/v1/auth/login', {
+      const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/v1/auth/login`, {
         email,
         password
       });
@@ -42,7 +42,7 @@ export default function Login() {
     setForgotError('');
     setForgotLoading(true);
     try {
-      await axios.post('http://localhost:5000/api/v1/auth/forgot-password', { email: forgotEmail });
+      await axios.post(`${import.meta.env.VITE_API_URL}/api/v1/auth/forgot-password`, { email: forgotEmail });
       // Always show success to prevent email enumeration attacks
       setForgotSuccess(true);
     } catch (err) {

@@ -19,8 +19,8 @@ export default function AdminDashboard() {
 
         // Check if actually admin implicitly by whether calls succeed
         const [usersRes, proposalsRes] = await Promise.all([
-          axios.get('http://localhost:5000/api/v1/users/admin/all-users', { headers: { Authorization: `Bearer ${token}` } }),
-          axios.get('http://localhost:5000/api/v1/problems/admin/proposals', { headers: { Authorization: `Bearer ${token}` } })
+          axios.get(`${import.meta.env.VITE_API_URL}/api/v1/users/admin/all-users`, { headers: { Authorization: `Bearer ${token}` } }),
+          axios.get(`${import.meta.env.VITE_API_URL}/api/v1/problems/admin/proposals`, { headers: { Authorization: `Bearer ${token}` } })
         ]);
 
         setUsers(usersRes.data);
@@ -38,7 +38,7 @@ export default function AdminDashboard() {
   const approveProposal = async (id) => {
     try {
       const token = localStorage.getItem('token');
-      await axios.post(`http://localhost:5000/api/v1/problems/admin/proposals/${id}/approve`, {}, {
+      await axios.post(`${import.meta.env.VITE_API_URL}/api/v1/problems/admin/proposals/${id}/approve`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
       // Filter it out or change status

@@ -50,7 +50,7 @@ export default function InterviewRoom() {
 
     const initRoom = async () => {
       try {
-        const response = await axios.post(`http://localhost:5000/api/v1/interviews/join/${roomId}`, {}, {
+        const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/v1/interviews/join/${roomId}`, {}, {
           headers: { Authorization: `Bearer ${token}` }
         });
         
@@ -62,7 +62,7 @@ export default function InterviewRoom() {
         }
 
         // Establish Socket Connection
-        const newSocket = io('http://localhost:5000/interview', {
+        const newSocket = io(`${import.meta.env.VITE_API_URL}/interview`, {
           withCredentials: true,
           auth: { token }
         });

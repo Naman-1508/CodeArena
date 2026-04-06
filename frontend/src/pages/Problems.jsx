@@ -39,8 +39,8 @@ export default function Problems() {
       try {
         const token = localStorage.getItem('token');
         const [probRes, statsRes] = await Promise.all([
-          axios.get('http://localhost:5000/api/v1/problems'),
-          token ? axios.get('http://localhost:5000/api/v1/users/me/stats', { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: { solvedIds: [] } })) : Promise.resolve({ data: { solvedIds: [] } })
+          axios.get(`${import.meta.env.VITE_API_URL}/api/v1/problems`),
+          token ? axios.get(`${import.meta.env.VITE_API_URL}/api/v1/users/me/stats`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: { solvedIds: [] } })) : Promise.resolve({ data: { solvedIds: [] } })
         ]);
         
         setProblems(probRes.data);

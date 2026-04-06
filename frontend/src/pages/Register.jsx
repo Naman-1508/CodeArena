@@ -24,7 +24,7 @@ export default function Register() {
         return;
       }
       try {
-        const res = await axios.get(`http://localhost:5000/api/v1/auth/check-username?username=${username}`);
+        const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/v1/auth/check-username?username=${username}`);
         setUsernameAvailable(!res.data.exists);
       } catch (e) {
         setUsernameAvailable(null);
@@ -42,7 +42,7 @@ export default function Register() {
         return;
       }
       try {
-        const res = await axios.get(`http://localhost:5000/api/v1/auth/check-email?email=${email}`);
+        const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/v1/auth/check-email?email=${email}`);
         setEmailAvailable(!res.data.exists);
       } catch (e) {
         setEmailAvailable(null);
@@ -63,7 +63,7 @@ export default function Register() {
     setError('');
     setLoading(true);
     try {
-      await axios.post('http://localhost:5000/api/v1/auth/send-otp', {
+      await axios.post(`${import.meta.env.VITE_API_URL}/api/v1/auth/send-otp`, {
         username,
         email
       });
@@ -83,7 +83,7 @@ export default function Register() {
     setError('');
     setLoading(true);
     try {
-      const response = await axios.post('http://localhost:5000/api/v1/auth/register', {
+      const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/v1/auth/register`, {
         username,
         email,
         password,
