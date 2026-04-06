@@ -1,7 +1,8 @@
 import Problem from '../models/Problem.js';
 import Submission from '../models/Submission.js';
 import ProblemProposal from '../models/ProblemProposal.js';
-import { addExecutionJob } from '../services/queueService.js';
+import User from '../models/User.js';
+import { addExecutionJob, executionQueue } from '../services/queueService.js';
 import axios from 'axios';
 import Joi from 'joi';
 import { GoogleGenAI } from '@google/genai';
@@ -10,8 +11,8 @@ import { GoogleGenAI } from '@google/genai';
 // @desc    Get all problems
 export const getProblems = async (req, res) => {
   try {
-    // Only select necessary fields for list view
-    const problems = await Problem.find().select('title slug difficulty tags').lean();
+    // Include totalAttempts/totalAccepted so the Problems list can show acceptance rates
+    const problems = await Problem.find().select('title slug difficulty tags totalAttempts totalAccepted').lean();
     res.json(problems);
   } catch (error) {
     res.status(500).json({ message: 'Server Error' });
@@ -119,10 +120,10 @@ export const submitProblem = async (req, res) => {
       status: 'Pending'
     });
 
-    // Append solutionTemplate (e.g., module.exports wrapper) for Node only
+    // Append export module logic for node
     let executableCode = code;
-    if (language === 'node') {
-      executableCode = `${code}\n\n${problem.solutionTemplate}`;
+    if (language === 'node' && code && problem.metaData && problem.metaData.name) {
+      executableCode = `${code}\n\nmodule.exports = ${problem.metaData.name};`;
     }
 
     // 2. Add job to execution queue queue
@@ -136,7 +137,8 @@ export const submitProblem = async (req, res) => {
       language,
       testCases: targetTestCases,
       problemTitle: problem.title,
-      problemDescription: problem.description
+      problemDescription: problem.description,
+      metaData: problem.metaData
     });
 
     // 3. Update submission with jobId for polling
@@ -169,9 +171,82 @@ export const getSubmission = async (req, res) => {
       return;
     }
 
+    // If still pending, check queue status and finalize
+    if (submission.status === 'Pending' && submission.jobId) {
+      const job = await executionQueue.getJob(submission.jobId);
+      if (job) {
+        const state = await job.getState();
+        if (state === 'completed' || state === 'failed') {
+          const result = job.returnvalue || {};
+          
+          if (state === 'failed' || (result.success === false && (!result.testResults || result.testResults.length === 0))) {
+            submission.status = 'Error';
+            submission.output = result.output || job.failedReason || 'Execution Failed due to internal error';
+            submission.runtimeMs = result.runtimeMs || 0;
+            submission.memoryKb = result.memoryKb || 0;
+          } else {
+            // Execution succeeded but check tests
+            const passed = result.passed || 0;
+            const total = result.total || 0;
+            let allPassed = (passed === total && total > 0) || result.success === true;
+            
+            if (result.testResults && result.testResults.length > 0) {
+              allPassed = result.testResults.every(r => r.passed);
+            }
+            // Some AI evaluations might only give `success: true` and no tests
+
+            submission.status = allPassed ? 'Pass' : 'Fail';
+            submission.passedCount = passed;
+            submission.totalCount = total;
+            submission.output = result.output || 'Execution completed';
+            submission.runtimeMs = result.runtimeMs || 0;
+            submission.memoryKb = result.memoryKb || 0;
+            submission.testResults = result.testResults || [];
+          }
+
+          await submission.save();
+
+          // Statistics tracking for actual submits
+          if (!submission.isRun) {
+            const problem = await Problem.findById(submission.problemId);
+            if (problem) {
+              problem.totalAttempts = (problem.totalAttempts || 0) + 1;
+              if (submission.status === 'Pass') {
+                problem.totalAccepted = (problem.totalAccepted || 0) + 1;
+              }
+              await problem.save();
+            }
+
+            if (submission.status === 'Pass') {
+               // Prevent infinite XP farming by checking if they already solved this problem
+               const priorSolve = await Submission.findOne({ 
+                   userId: submission.userId, 
+                   problemId: submission.problemId, 
+                   status: 'Pass', 
+                   _id: { $ne: submission._id } 
+               });
+
+               if (!priorSolve) {
+                 const user = await User.findById(submission.userId);
+                 if (user) {
+                    const diff = problem ? problem.difficulty : 'Medium';
+                    const xpMap = { Easy: 15, Medium: 25, Hard: 50 };
+                    const expEarned = xpMap[diff] || 25;
+                    
+                    user.xp = (user.xp || 0) + expEarned;
+                    user.level = Math.floor(user.xp / 100) + 1;
+                    await user.save();
+                 }
+               }
+            }
+          }
+        }
+      }
+    }
+
     res.json(submission);
   } catch (error) {
-    res.status(500).json({ message: 'Server Error' });
+    res.status(500).json({ message: 'Server Error', error: error.message });
   }
 };
 
@@ -255,7 +330,7 @@ export const approveProposal = async (req, res) => {
 };
 
 // @route   POST /api/v1/problems/:slug/ask-ai
-// @desc    Ask AI for a hint on the current problem code
+// @desc    Ask AI for a hint / chat message on the current problem code
 export const askAIHint = async (req, res) => {
   try {
     const aiKey = process.env.GEMINI_API_KEY;
@@ -266,32 +341,49 @@ export const askAIHint = async (req, res) => {
     const problem = await Problem.findOne({ slug: req.params.slug });
     if (!problem) return res.status(404).json({ message: 'Problem not found' });
 
-    const { code, language } = req.body;
+    const { code, language, userMessage, history } = req.body;
 
     const ai = new GoogleGenAI({ apiKey: aiKey });
-    const prompt = `
-You are a helpful, encouraging programming tutor. A student is working on the problem: "${problem.title}".
+
+    // Build a system context and then append the conversation history
+    const systemContext = `You are an expert, encouraging programming tutor on CodeArena. 
+The student is working on: "${problem.title}" (${problem.difficulty}).
+
 Problem description:
-${problem.description}
+${(problem.description || '').replace(/<[^>]*>/g, '').slice(0, 800)}
 
-They are using ${language} and their current code is:
-\`\`\`
-${code}
+Student's current ${language} code:
+\`\`\`${language}
+${code || '// (no code yet)'}
 \`\`\`
 
-Give them a brief, highly contextual hint about how to proceed or what bug they might have. 
-CRITICAL RULE: DO NOT GIVE THEM THE FULL SOLUTION OR EXACT CODE TO COPY AND PASTE. Guide them to the answer pedagogically.
-Keep your response under 100 words. Use friendly markdown.`;
+CRITICAL RULES:
+1. NEVER give the full solution or paste-ready code.
+2. Guide pedagogically — ask leading questions, point to the right concept.
+3. Keep each reply under 150 words.
+4. Use friendly markdown with **bold** for key terms.
+5. If the student asks something off-topic, gently redirect to the problem.`;
+
+    // Build conversation: prior history + current user message
+    const priorHistory = Array.isArray(history) ? history : [];
+    const currentQuestion = userMessage || 'Please review my code and give me a hint on how to proceed.';
+
+    // Format as a multi-turn prompt
+    let fullPrompt = systemContext + '\n\n--- Conversation ---\n';
+    priorHistory.forEach(msg => {
+      fullPrompt += `\n${msg.role === 'user' ? 'Student' : 'Tutor'}: ${msg.content}`;
+    });
+    fullPrompt += `\nStudent: ${currentQuestion}\nTutor:`;
 
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
-      contents: prompt,
-      config: { temperature: 0.5 }
+      contents: fullPrompt,
+      config: { temperature: 0.6, maxOutputTokens: 400 }
     });
 
     res.json({ hint: response.text.trim() });
   } catch (error) {
     console.error('AI Hint Error:', error);
-    res.status(500).json({ message: 'Failed to generate AI hint' });
+    res.status(500).json({ message: 'Failed to generate AI response' });
   }
 };

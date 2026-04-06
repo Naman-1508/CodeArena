@@ -23,8 +23,8 @@ const ProblemSchema = new Schema({
   difficulty: { type: String, enum: ['Easy', 'Medium', 'Hard'], required: true },
   description: { type: String, required: true },
   tags: [{ type: String }],
-  initialCode: { type: String, required: true },
-  solutionTemplate: { type: String, required: true },
+  codeSnippets: { type: Schema.Types.Mixed }, // maps language to starter code
+  metaData: { type: Schema.Types.Mixed }, // stores function name, param types, etc.
   testCases: [{
     input: { type: Schema.Types.Mixed, required: true },
     expectedOutput: { type: Schema.Types.Mixed, required: true },

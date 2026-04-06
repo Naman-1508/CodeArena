@@ -1,14 +1,18 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Shield, Users, CheckCircle, Clock, Search, ShieldAlert, Cpu } from 'lucide-react';
+import { Shield, Users, CheckCircle, ShieldAlert } from 'lucide-react';
 import axios from 'axios';
-import { Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 
 export default function AdminDashboard() {
+  const { tab } = useParams();
+  const activeTab = tab || 'analytics';
   const [users, setUsers] = useState([]);
   const [proposals, setProposals] = useState([]);
+  const [problems, setProblems] = useState([]);
+  const [interviews, setInterviews] = useState([]);
+  const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('proposals'); // 'proposals' | 'users'
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -18,13 +22,19 @@ export default function AdminDashboard() {
         if (!token) return navigate('/login');
 
         // Check if actually admin implicitly by whether calls succeed
-        const [usersRes, proposalsRes] = await Promise.all([
+        const [usersRes, proposalsRes, problemsRes, statsRes, interviewsRes] = await Promise.all([
           axios.get(`${import.meta.env.VITE_API_URL}/api/v1/users/admin/all-users`, { headers: { Authorization: `Bearer ${token}` } }),
-          axios.get(`${import.meta.env.VITE_API_URL}/api/v1/problems/admin/proposals`, { headers: { Authorization: `Bearer ${token}` } })
+          axios.get(`${import.meta.env.VITE_API_URL}/api/v1/problems/admin/proposals`, { headers: { Authorization: `Bearer ${token}` } }),
+          axios.get(`${import.meta.env.VITE_API_URL}/api/v1/problems`).catch(() => ({ data: [] })),
+          axios.get(`${import.meta.env.VITE_API_URL}/api/v1/users/admin/stats`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: null })),
+          axios.get(`${import.meta.env.VITE_API_URL}/api/v1/interviews/admin/all`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: [] }))
         ]);
 
         setUsers(usersRes.data);
         setProposals(proposalsRes.data);
+        setProblems(problemsRes.data);
+        setStats(statsRes.data);
+        setInterviews(interviewsRes.data);
       } catch (err) {
         console.error('Admin access denied:', err);
         navigate('/dashboard'); // not admin or error
@@ -41,13 +51,17 @@ export default function AdminDashboard() {
       await axios.post(`${import.meta.env.VITE_API_URL}/api/v1/problems/admin/proposals/${id}/approve`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      // Filter it out or change status
       setProposals(p => p.map(prop => prop._id === id ? { ...prop, status: 'Approved' } : prop));
     } catch (err) {
       console.error(err);
       alert('Failed to approve');
     }
   };
+
+  const rejectProposal = (id) => {
+    setProposals(p => p.map(prop => prop._id === id ? { ...prop, status: 'Rejected' } : prop));
+  };
+
 
   if (loading) {
     return <div className="flex-1 flex items-center justify-center"><div className="w-8 h-8 border-4 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" /></div>;
@@ -72,31 +86,124 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        <div className="relative z-10 flex gap-4">
-          <div className="flex flex-col items-center bg-black/40 border border-white/10 rounded-xl px-5 py-3 min-w-[120px]">
+        <div className="relative z-10 flex gap-4 flex-wrap">
+          <div className="flex flex-col items-center bg-black/40 border border-white/10 rounded-xl px-5 py-3 min-w-[110px]">
             <span className="text-indigo-400 font-black text-2xl">{users.length}</span>
             <span className="text-xs text-slate-500 font-bold uppercase tracking-wider">Total Users</span>
           </div>
-          <div className="flex flex-col items-center bg-black/40 border border-white/10 rounded-xl px-5 py-3 min-w-[120px]">
+          <div className="flex flex-col items-center bg-black/40 border border-white/10 rounded-xl px-5 py-3 min-w-[110px]">
             <span className="text-pink-400 font-black text-2xl">{proposals.filter(p => p.status === 'Pending').length}</span>
             <span className="text-xs text-slate-500 font-bold uppercase tracking-wider">Pending Proposals</span>
           </div>
+          <div className="flex flex-col items-center bg-black/40 border border-white/10 rounded-xl px-5 py-3 min-w-[110px]">
+            <span className="text-emerald-400 font-black text-2xl">{problems.length}</span>
+            <span className="text-xs text-slate-500 font-bold uppercase tracking-wider">Total Problems</span>
+          </div>
+          <div className="flex flex-col items-center bg-black/40 border border-white/10 rounded-xl px-5 py-3 min-w-[110px]">
+            <span className="text-amber-400 font-black text-2xl">{stats?.totalSubmissions ?? '—'}</span>
+            <span className="text-xs text-slate-500 font-bold uppercase tracking-wider">Total Submissions</span>
+          </div>
+          {stats?.newUsersThisWeek !== undefined && (
+            <div className="flex flex-col items-center bg-black/40 border border-white/10 rounded-xl px-5 py-3 min-w-[110px]">
+              <span className="text-cyan-400 font-black text-2xl">+{stats.newUsersThisWeek}</span>
+              <span className="text-xs text-slate-500 font-bold uppercase tracking-wider">New This Week</span>
+            </div>
+          )}
         </div>
       </motion.header>
 
-      {/* ── TABS ─────────────────────────────────────────────── */}
-      <div className="flex items-center gap-2 mb-6 bg-[#0a0a0a] p-1.5 rounded-xl border border-white/10 w-fit">
-        <button onClick={() => setActiveTab('proposals')}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'proposals' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}>
-          <Clock className="w-4 h-4" /> Problem Proposals
-        </button>
-        <button onClick={() => setActiveTab('users')}
-          className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'users' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}>
-          <Users className="w-4 h-4" /> Registered Users
-        </button>
-      </div>
-
       {/* ── CONTENT ─────────────────────────────────────────────── */}
+      {activeTab === 'analytics' && stats && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-[#0a0a0a] border border-white/5 p-6 rounded-2xl relative overflow-hidden">
+               <div className="absolute top-0 right-0 w-32 h-32 bg-green-500/10 blur-[50px] rounded-full pointer-events-none" />
+               <h3 className="text-xl font-bold text-white mb-4">Acceptance Rate Over Time</h3>
+               <div className="flex flex-col gap-2">
+                 <div className="flex justify-between items-center bg-white/5 px-4 py-3 rounded-xl border border-white/10">
+                   <span className="text-slate-400 font-bold">Total Platform Submissions</span>
+                   <span className="text-white font-black text-xl">{stats.totalSubmissions}</span>
+                 </div>
+                 <div className="flex justify-between items-center bg-white/5 px-4 py-3 rounded-xl border border-white/10">
+                   <span className="text-slate-400 font-bold">Total Platform Completions</span>
+                   <span className="text-white font-black text-xl text-emerald-400">{stats.passedSubmissions}</span>
+                 </div>
+                 <div className="flex justify-between items-center bg-white/5 px-4 py-3 rounded-xl border border-white/10 mt-2">
+                   <span className="text-slate-400 font-bold">Average Acceptance Rate</span>
+                   <span className="text-white font-black text-2xl">{stats.acceptanceRate}%</span>
+                 </div>
+               </div>
+            </div>
+
+            <div className="bg-[#0a0a0a] border border-white/5 p-6 rounded-2xl relative overflow-hidden">
+               <div className="absolute top-0 left-0 w-32 h-32 bg-purple-500/10 blur-[50px] rounded-full pointer-events-none" />
+               <h3 className="text-xl font-bold text-white mb-4">Most Attempted Problems</h3>
+               <div className="space-y-3">
+                 {stats.topProblems?.map((p, idx) => (
+                   <div key={p.slug} className="flex justify-between items-center p-3 rounded-xl bg-black/40 border border-white/5 hover:bg-white/5 transition-colors">
+                     <div className="flex items-center gap-3">
+                       <span className="text-indigo-400 font-black text-lg w-6">{idx + 1}.</span>
+                       <div>
+                         <p className="text-white font-bold text-sm">{p.title}</p>
+                         <p className="text-xs text-slate-500">{p.difficulty}</p>
+                       </div>
+                     </div>
+                     <div className="text-right">
+                       <p className="text-amber-400 font-bold text-sm">{p.totalAttempts} att.</p>
+                       <p className="text-xs text-slate-500">{p.totalAccepted} acc.</p>
+                     </div>
+                   </div>
+                 ))}
+                 {(!stats.topProblems || stats.topProblems.length === 0) && (
+                   <p className="text-slate-500 text-sm">No problem data yet.</p>
+                 )}
+               </div>
+            </div>
+          </div>
+          
+          <div className="bg-[#0a0a0a] border border-white/5 p-6 rounded-2xl">
+            <h3 className="text-xl font-bold text-white mb-4">Recent Submissions Engine</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm whitespace-nowrap">
+                <thead className="bg-black/40 border-b border-white/5 text-slate-400 uppercase text-[10px] tracking-wider font-black">
+                  <tr>
+                    <th className="px-4 py-3">User</th>
+                    <th className="px-4 py-3">Problem</th>
+                    <th className="px-4 py-3">Language</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">Tests Passed</th>
+                    <th className="px-4 py-3">Time</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {stats.recentSubmissions?.map(sub => (
+                    <tr key={sub._id} className="hover:bg-white/5">
+                      <td className="px-4 py-3 text-slate-300 font-bold">{sub.userId?.username || 'Unknown'}</td>
+                      <td className="px-4 py-3 text-indigo-400 hover:underline"><Link to={`/problems/${sub.problemId?.slug}`}>{sub.problemId?.title || 'Unknown'}</Link></td>
+                      <td className="px-4 py-3 text-slate-400">{sub.language}</td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
+                          sub.status === 'Pass' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 
+                          sub.status === 'Fail' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
+                          sub.status === 'Pending' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
+                          'bg-slate-500/10 text-slate-400 border border-slate-500/20'
+                        }`}>{sub.status}</span>
+                      </td>
+                      <td className="px-4 py-3 text-slate-400">{sub.passedCount} / {sub.totalCount}</td>
+                      <td className="px-4 py-3 text-slate-500">{new Date(sub.createdAt).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                  {(!stats.recentSubmissions || stats.recentSubmissions.length === 0) && (
+                    <tr>
+                      <td colSpan="6" className="px-4 py-8 text-center text-slate-500">No submissions recently recorded.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </motion.div>
+      )}
       {activeTab === 'proposals' && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
           {proposals.length === 0 ? (
@@ -128,13 +235,21 @@ export default function AdminDashboard() {
 
                 <div className="flex flex-col gap-2 shrink-0 w-full md:w-auto">
                   {prop.status === 'Pending' ? (
-                    <button onClick={() => approveProposal(prop._id)}
-                      className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold rounded-xl transition-all flex items-center justify-center gap-2">
-                      <CheckCircle className="w-4 h-4" /> Approve &amp; Publish
-                    </button>
+                    <>
+                      <button onClick={() => approveProposal(prop._id)}
+                        className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold rounded-xl transition-all flex items-center justify-center gap-2">
+                        <CheckCircle className="w-4 h-4" /> Approve &amp; Publish
+                      </button>
+                      <button onClick={() => rejectProposal(prop._id)}
+                        className="px-5 py-2.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 text-sm font-bold rounded-xl transition-all flex items-center justify-center gap-2">
+                        Reject
+                      </button>
+                    </>
                   ) : (
-                    <button disabled className="px-5 py-2.5 bg-white/5 text-slate-500 text-sm font-bold rounded-xl cursor-not-allowed flex items-center justify-center gap-2">
-                      <Shield className="w-4 h-4" /> Published
+                    <button disabled className={`px-5 py-2.5 text-sm font-bold rounded-xl cursor-not-allowed flex items-center justify-center gap-2 ${
+                      prop.status === 'Approved' ? 'bg-indigo-500/10 text-indigo-400' : 'bg-red-500/10 text-red-400'
+                    }`}>
+                      <Shield className="w-4 h-4" /> {prop.status}
                     </button>
                   )}
                 </div>
@@ -153,6 +268,8 @@ export default function AdminDashboard() {
                   <th className="px-6 py-4">Username</th>
                   <th className="px-6 py-4">Role</th>
                   <th className="px-6 py-4">Level (XP)</th>
+                  <th className="px-6 py-4 text-center">Submissions</th>
+                  <th className="px-6 py-4 text-center">Accepted</th>
                   <th className="px-6 py-4">Joined At</th>
                 </tr>
               </thead>
@@ -171,7 +288,46 @@ export default function AdminDashboard() {
                       }`}>{u.role}</span>
                     </td>
                     <td className="px-6 py-4 text-slate-300">Level {u.level} ({u.xp} XP)</td>
+                    <td className="px-6 py-4 text-center text-slate-400">{u.totalSubmissions || 0}</td>
+                    <td className="px-6 py-4 text-center text-emerald-400 font-bold">{u.passedSubmissions || 0}</td>
                     <td className="px-6 py-4 text-slate-500">{new Date(u.createdAt || Date.now()).toLocaleDateString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </motion.div>
+      )}
+
+      {activeTab === 'interviews' && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-[#0a0a0a] border border-white/5 rounded-2xl overflow-hidden mt-6">
+          <div className="overflow-x-auto custom-scrollbar">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-black/40 border-b border-white/5 text-slate-400 uppercase text-[10px] tracking-wider font-black">
+                <tr>
+                  <th className="px-6 py-4">Room Token</th>
+                  <th className="px-6 py-4">Interviewer</th>
+                  <th className="px-6 py-4">Candidate</th>
+                  <th className="px-6 py-4">Status</th>
+                  <th className="px-6 py-4">Started At</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {interviews.length === 0 ? (
+                  <tr><td colSpan="5" className="px-6 py-6 text-center text-slate-500">No interviews tracked.</td></tr>
+                ) : interviews.map(i => (
+                  <tr key={i._id} className="hover:bg-white/5 transition-colors">
+                    <td className="px-6 py-4 font-mono text-indigo-400 text-xs">{i.roomToken.split('-')[0]}***</td>
+                    <td className="px-6 py-4 font-bold text-slate-300">{i.interviewerId?.username || 'Unknown'}</td>
+                    <td className="px-6 py-4 text-slate-400">{i.candidateId?.username || 'Not Joined'}</td>
+                    <td className="px-6 py-4">
+                      <span className={`px-2 py-1 text-[10px] rounded uppercase font-bold tracking-wider border ${
+                        i.status === 'Active' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 
+                        i.status === 'Completed' ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' :
+                        'bg-slate-500/10 text-slate-400 border-slate-500/20'
+                      }`}>{i.status}</span>
+                    </td>
+                    <td className="px-6 py-4 text-slate-500">{i.startedAt ? new Date(i.startedAt).toLocaleString() : 'N/A'}</td>
                   </tr>
                 ))}
               </tbody>

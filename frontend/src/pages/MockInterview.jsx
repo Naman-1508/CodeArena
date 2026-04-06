@@ -82,7 +82,7 @@ export default function MockInterview() {
       // Fetch full problem for description + initial code
       const fullRes = await axios.get(`${import.meta.env.VITE_API_URL}/api/v1/problems/${p.slug}`);
       const full = fullRes.data;
-      let initCode = full.initialCode || STARTER[language];
+      let initCode = full.codeSnippets?.[language] || STARTER[language];
       if (typeof initCode === 'string') {
         initCode = initCode.replace(/\\n/g, '\n').replace(/\\t/g, '\t');
       }
@@ -165,8 +165,8 @@ export default function MockInterview() {
               <Target className="w-6 h-6 text-primary" />
             </div>
             <div>
-              <h1 className="text-xl font-black text-white">Mock Interview</h1>
-              <p className="text-sm text-slate-500">Simulated technical interview under time pressure</p>
+              <h1 className="text-xl font-black text-white">Technical Assessment</h1>
+              <p className="text-sm text-slate-500">Timed technical screen with automated test cases</p>
             </div>
           </div>
 
@@ -318,7 +318,7 @@ export default function MockInterview() {
           {/* Lang Selector */}
           <div className="h-10 border-b border-white/5 bg-[#0d0d0d] flex items-center px-4 gap-3 shrink-0">
             {[{ v: 'node', l: 'JavaScript' }, { v: 'python', l: 'Python' }, { v: 'java', l: 'Java' }, { v: 'cpp', l: 'C++' }].map(lg => (
-              <button key={lg.v} onClick={() => { setLanguage(lg.v); setCode(STARTER[lg.v]); }}
+              <button key={lg.v} onClick={() => { setLanguage(lg.v); setCode(problem?.codeSnippets?.[lg.v] || STARTER[lg.v]); }}
                 className={`text-xs font-bold px-3 py-1 rounded-lg transition-colors ${language === lg.v ? 'bg-primary/10 text-primary border border-primary/20' : 'text-slate-500 hover:text-slate-300'}`}>
                 {lg.l}
               </button>

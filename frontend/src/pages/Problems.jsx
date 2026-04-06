@@ -193,9 +193,10 @@ export default function Problems() {
         {/* Header row */}
         <div className="grid grid-cols-12 px-5 py-3 border-b border-white/5 text-[10px] font-bold text-slate-600 uppercase tracking-widest">
           <span className="col-span-1">#</span>
-          <span className="col-span-5">Title</span>
+          <span className="col-span-4">Title</span>
           <span className="col-span-2">Difficulty</span>
-          <span className="col-span-4">Tags</span>
+          <span className="col-span-3">Tags</span>
+          <span className="col-span-2 text-right pr-2">Acceptance</span>
         </div>
 
         {loading ? (
@@ -209,10 +210,10 @@ export default function Problems() {
             <motion.div key={prob._id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.03 }}>
               <Link to={`/arena/${prob.slug}`}
                 className="grid grid-cols-12 px-5 py-4 border-b border-white/3 hover:bg-white/3 transition-colors items-center group cursor-pointer">
-                <span className="col-span-1 text-slate-600 text-sm font-mono">{prob._id.slice(-4).toUpperCase()}</span>
-                <span className="col-span-5 flex flex-col justify-center">
+                <span className="col-span-1 text-slate-600 text-sm font-mono">{i + 1}</span>
+                <span className="col-span-4 flex flex-col justify-center">
                   <span className="text-sm font-semibold text-white group-hover:text-primary transition-colors flex items-center gap-2">
-                    {prob.title}
+                    {prob.title.replace(/^\d+\.\s*/, '')}
                     {solvedIds.has(prob._id) && (
                       <CheckCircle2 className="w-4 h-4 text-green-500 fill-green-500/20" title="Solved" />
                     )}
@@ -222,10 +223,25 @@ export default function Problems() {
                 <span className={`col-span-2 text-xs font-bold px-2.5 py-0.5 rounded-full border w-fit ${DIFF_BG[prob.difficulty]} ${DIFF_COLOR[prob.difficulty]}`}>
                   {prob.difficulty}
                 </span>
-                <span className="col-span-4 flex gap-1.5 flex-wrap">
-                  {prob.tags?.slice(0, 3).map(tag => (
+                <span className="col-span-3 flex gap-1.5 flex-wrap">
+                  {prob.tags?.slice(0, 2).map(tag => (
                     <span key={tag} className="px-2 py-0.5 rounded bg-white/5 text-slate-500 text-[10px] border border-white/5">{tag}</span>
                   ))}
+                </span>
+                <span className="col-span-2 text-right pr-2">
+                  {prob.totalAttempts > 0 ? (
+                    <span className={`text-xs font-bold ${
+                      Math.round((prob.totalAccepted / prob.totalAttempts) * 100) >= 50
+                        ? 'text-green-400'
+                        : Math.round((prob.totalAccepted / prob.totalAttempts) * 100) >= 30
+                          ? 'text-yellow-400'
+                          : 'text-red-400'
+                    }`}>
+                      {Math.round((prob.totalAccepted / prob.totalAttempts) * 100)}%
+                    </span>
+                  ) : (
+                    <span className="text-xs text-slate-700">—</span>
+                  )}
                 </span>
               </Link>
             </motion.div>

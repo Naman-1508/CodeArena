@@ -29,8 +29,8 @@ export default function Login() {
       const { token, ...user } = response.data;
       localStorage.setItem('token', token);
       localStorage.setItem('user', JSON.stringify(user));
-      // Fix black screen by forcing full page reload to properly mount all sub-components with Contexts
-      window.location.href = '/dashboard';
+      // Admins go straight to admin panel, normal users go to dashboard
+      window.location.href = user.role === 'Admin' ? '/admin' : '/dashboard';
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to authenticate. Please check your credentials.');
       setLoading(false);

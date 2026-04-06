@@ -7,6 +7,7 @@ import { processGamification } from './gamificationService.js';
 const connectionConfig = process.env.REDIS_URL 
   ? new IORedis(process.env.REDIS_URL, { maxRetriesPerRequest: null }) 
   : { host: '127.0.0.1', port: 6379, maxRetriesPerRequest: null };
+
 const queueEvents = new QueueEvents('code-execution', { connection: connectionConfig });
 
 export const startJobListener = () => {
@@ -17,20 +18,30 @@ export const startJobListener = () => {
 
       if (!submission) return;
 
-      submission.status = result.success ? 'Pass' : 'Fail';
-      submission.runtimeMs = result.runtimeMs;
-      submission.memoryKb = result.memoryKb;
-      submission.output = result.output;
-      submission.passedCount = result.passed;
-      submission.totalCount = result.total;
+      const passed = !!result.success;
+      submission.status = passed ? 'Pass' : 'Fail';
+      submission.runtimeMs = result.runtimeMs || 0;
+      submission.memoryKb = result.memoryKb || 0;
+      submission.output = result.output || '';
+      submission.passedCount = result.passed || 0;
+      submission.totalCount = result.total || 0;
       submission.testResults = result.testResults || [];
       await submission.save();
 
+      // ── Increment problem acceptance counters ────────────────────────
+      // Always count the attempt; only count accepted when passed
+      await Problem.findByIdAndUpdate(submission.problemId, {
+        $inc: {
+          totalAttempts: 1,
+          ...(passed ? { totalAccepted: 1 } : {}),
+        },
+      });
+
       // Trigger gamification if passed and it's a real Submission (not just a Run)
-      if (result.success && !submission.isRun) {
+      if (passed && !submission.isRun) {
         const problem = await Problem.findById(submission.problemId);
         if (problem) {
-          // Check if first attempt
+          // Only award first-solve XP bonus once per problem per user
           const previousPass = await Submission.findOne({
             userId: submission.userId,
             problemId: submission.problemId,
@@ -41,7 +52,7 @@ export const startJobListener = () => {
           await processGamification(
             submission.userId.toString(),
             problem.difficulty,
-            !previousPass
+            !previousPass // isFirstAttempt
           );
         }
       }
@@ -52,10 +63,18 @@ export const startJobListener = () => {
 
   queueEvents.on('failed', async ({ jobId, failedReason }) => {
     try {
-      await Submission.findOneAndUpdate(
+      const submission = await Submission.findOneAndUpdate(
         { jobId },
-        { status: 'Error', output: failedReason }
+        { status: 'Error', output: failedReason || 'Execution failed' },
+        { new: true }
       );
+
+      // Still count the attempt even if execution crashed
+      if (submission) {
+        await Problem.findByIdAndUpdate(submission.problemId, {
+          $inc: { totalAttempts: 1 },
+        });
+      }
     } catch (error) {
       console.error('Error handling failed job:', error);
     }

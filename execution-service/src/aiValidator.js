@@ -1,6 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
 
-export const evaluateCodeWithAI = async (language, code, problemTitle, problemDescription) => {
+export const evaluateCodeWithAI = async (language, code, problemTitle, problemDescription, testCases = null) => {
     try {
         if (!process.env.GEMINI_API_KEY) {
             // Fallback mock check if no API key is provided
@@ -20,6 +20,7 @@ export const evaluateCodeWithAI = async (language, code, problemTitle, problemDe
         const prompt = `
 You are an expert programming technical interviewer and automated judge. 
 Your task is to evaluate the following user submission for a coding problem.
+${testCases && testCases.length > 0 ? `\nCRITICAL CONTEXT: The user was given these specific visible testcases:\n${JSON.stringify(testCases.map(tc => ({input:tc.input, expected:tc.expectedOutput})))}\nEnsure they did NOT just hardcode their code to match these inputs directly. If they hardcoded the logic, set success to false.\n` : ''}
 
 Problem Name: ${problemTitle}
 Problem Description:
@@ -32,9 +33,10 @@ ${code}
 \`\`\`
 
 Analyze the code for:
-1. Correctness: Does it solve the problem logically?
-2. Edge cases: Will it handle typical edge cases (e.g., empty arrays, null, negative numbers if applicable)?
-3. Complexity: Is it reasonably efficient (not O(N^3) if O(N) is expected)?
+1. Hardcoding: Did the user hardcode logic to pass specific visible test cases instead of writing a generalized algorithm?
+2. Correctness: Does it solve the problem logically for all possible inputs hidden from the user?
+3. Edge cases: Will it handle typical edge cases (e.g., empty arrays, null, negative numbers if applicable)?
+4. Complexity: Is it reasonably efficient?
 
 Return a pure JSON response (no markdown fences, strictly parseable JSON) matching this exact format:
 {

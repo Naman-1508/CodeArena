@@ -7,7 +7,7 @@ import jwt from 'jsonwebtoken';
 export const initSockets = (httpServer) => {
   const io = new Server(httpServer, {
     cors: {
-      origin: true,
+      origin: process.env.CLIENT_URL || 'http://localhost:5173',
       methods: ['GET', 'POST'],
       credentials: true
     }

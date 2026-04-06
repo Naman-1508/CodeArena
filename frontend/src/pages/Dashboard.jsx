@@ -15,6 +15,8 @@ export default function Dashboard() {
     easySolved: 0,
     mediumSolved: 0,
     hardSolved: 0,
+    totalSubmissions: 0,
+    totalRuns: 0,
     heatmap: []
   });
   
@@ -54,6 +56,8 @@ export default function Dashboard() {
           easySolved: statsRes.data.easySolved || 0,
           mediumSolved: statsRes.data.mediumSolved || 0,
           hardSolved: statsRes.data.hardSolved || 0,
+          totalSubmissions: statsRes.data.totalSubmissions || 0,
+          totalRuns: statsRes.data.totalRuns || 0,
           heatmap: statsRes.data.heatmap || [],
           percentile: statsRes.data.percentile !== undefined ? statsRes.data.percentile : 0,
           topTags: statsRes.data.topTags || []
@@ -157,6 +161,7 @@ export default function Dashboard() {
               { icon: <Flame className="w-5 h-5 fill-orange-500 text-orange-500" />, value: userStats.streak, label: 'Day Streak', color: 'text-orange-500' },
               { icon: <Zap className="w-5 h-5 fill-accent text-accent" />, value: `Lvl ${userStats.level}`, label: 'Current Tier', color: 'text-accent' },
               { icon: <CheckCircle className="w-5 h-5 text-green-400" />, value: userStats.easySolved + userStats.mediumSolved + userStats.hardSolved, label: 'Total Solved', color: 'text-green-400' },
+              { icon: <Code2 className="w-5 h-5 text-blue-400" />, value: userStats.totalSubmissions || 0, label: 'Submissions', color: 'text-blue-400' },
             ].map(s => (
               <div key={s.label} className="flex flex-col items-center p-4 bg-black/50 border border-white/5 rounded-2xl min-w-[100px]">
                 <div className={`flex items-center gap-1.5 font-black text-xl mb-0.5 ${s.color}`}>
@@ -262,7 +267,7 @@ export default function Dashboard() {
                 <span className="text-[10px] font-bold text-primary/80 uppercase tracking-widest">Daily Challenge</span>
                 <span className="text-[10px] text-slate-500">{dailyChallenge.date}</span>
               </div>
-              <h3 className="text-white font-bold text-base">{dailyChallenge.problem.title}</h3>
+              <h3 className="text-white font-bold text-base">{dailyChallenge.problem.title.replace(/^\d+\.\s*/, '')}</h3>
               <div className="flex items-center gap-2 mt-1">
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
                   dailyChallenge.problem.difficulty === 'Easy' ? 'bg-green-500/10 text-green-400 border-green-500/20' :
@@ -440,22 +445,22 @@ export default function Dashboard() {
             <div className="flex items-center gap-3 mb-1">
               <div className="p-2.5 bg-orange-500/10 border border-orange-500/20 rounded-xl text-orange-400"><Clock className="w-5 h-5 flex-shrink-0" /></div>
               <div>
-                <h3 className="text-sm font-bold text-white group-hover:text-orange-400 transition-colors">Mock Interview</h3>
-                <p className="text-xs text-slate-500">Timed solo practice session</p>
+                <h3 className="text-sm font-bold text-white group-hover:text-orange-400 transition-colors">Technical Assessment</h3>
+                <p className="text-xs text-slate-500">Timed solo practice test</p>
               </div>
             </div>
             <ArrowRight className="w-4 h-4 absolute right-5 top-1/2 -translate-y-1/2 text-slate-600 group-hover:text-orange-400 transition-colors" />
           </motion.div>
         </Link>
 
-        <Link to="/interview/demo-room" className="block group">
+        <Link to="/interview" className="block group">
           <motion.div whileHover={{ y: -3 }} className="bg-[#0a0a0a] border border-white/5 hover:border-accent/40 p-5 rounded-2xl relative overflow-hidden transition-colors h-full flex flex-col justify-center">
             <div className="absolute inset-0 bg-gradient-to-br from-accent/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
             <div className="flex items-center gap-3 mb-1">
-              <div className="p-2.5 bg-accent/10 border border-accent/20 rounded-xl text-accent"><Flame className="w-5 h-5 flex-shrink-0" /></div>
+              <div className="p-2.5 bg-accent/10 border border-accent/20 rounded-xl text-accent"><Users className="w-5 h-5 flex-shrink-0" /></div>
               <div>
                 <h3 className="text-sm font-bold text-white group-hover:text-accent transition-colors">Live Interview</h3>
-                <p className="text-xs text-slate-500">Collaborative real-time room</p>
+                <p className="text-xs text-slate-500">Host or join a collaborative session</p>
               </div>
             </div>
             <ArrowRight className="w-4 h-4 absolute right-5 top-1/2 -translate-y-1/2 text-slate-600 group-hover:text-accent transition-colors" />

@@ -4,19 +4,11 @@ import util from 'util';
 
 const execAsync = util.promisify(exec);
 
-
-
-
-
-
-
-
 export const runDockerContainer = async (
   tempPath,
   language) => {
   // Normalize windows path for docker mount if necessary
   const normalizedPath = tempPath.replace(/\\/g, '/');
-
   // Mapping language to docker image
   let image = '';
   let command = '';
@@ -54,7 +46,8 @@ export const runDockerContainer = async (
         runtimeMs,
         memoryKb: resultObj.memoryKb || 0, // In a real scenario, could track exact docker memory
         passed: resultObj.passed || 0,
-        total: resultObj.total || 0
+        total: resultObj.total || 0,
+        testResults: resultObj.testResults || []
       };
     } catch (parseError) {
       // If runner didn't output JSON, return raw output

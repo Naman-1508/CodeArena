@@ -58,3 +58,22 @@ export const joinRoom = async (req, res) => {
     res.status(500).json({ message: 'Server Error' });
   }
 };
+
+// @route   GET /api/v1/interviews/admin/all
+// @desc    Admin fetches all interviews
+export const getAllInterviews = async (req, res) => {
+  try {
+    if (req.user?.role !== 'Admin') {
+      res.status(403).json({ message: 'Not authorized' });
+      return;
+    }
+    const interviews = await Interview.find()
+      .populate('interviewerId', 'username email')
+      .populate('candidateId', 'username email')
+      .populate('problemId', 'title')
+      .sort({ createdAt: -1 });
+    res.json(interviews);
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error' });
+  }
+};

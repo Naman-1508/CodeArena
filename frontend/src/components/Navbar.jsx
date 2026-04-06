@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useState, useEffect } from 'react';
-import { Code2, LayoutDashboard, Target, Users, Flame, LogOut, CodeSquare, BookOpen, Trophy, Zap, ShieldAlert } from 'lucide-react';
+import { Code2, LayoutDashboard, Target, Users, Flame, LogOut, CodeSquare, BookOpen, Trophy, Zap, ShieldAlert, Shield } from 'lucide-react';
 import axios from 'axios';
 
 export default function Navbar() {
@@ -46,16 +46,28 @@ export default function Navbar() {
     fetchStats();
   }, []);
 
-  const navLinks = [
-    { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/arena', label: 'Practice', icon: Target },
-    { path: '/problems', label: 'Problems', icon: BookOpen },
-    { path: '/leaderboard', label: 'Leaderboard', icon: Trophy },
-    { path: '/interview', label: 'Interview', icon: Users },
-  ];
+  const isAdminRoute = location.pathname.startsWith('/admin');
+  let navLinks = [];
 
-  if (user.role === 'Admin') {
-    navLinks.push({ path: '/admin', label: 'Admin Panel', icon: ShieldAlert });
+  if (isAdminRoute) {
+    navLinks = [
+      { path: '/admin/analytics', label: 'Platform Analytics', icon: Zap },
+      { path: '/admin/proposals', label: 'Problem Proposals', icon: BookOpen },
+      { path: '/admin/users', label: 'User Directory', icon: Users },
+      { path: '/admin/interviews', label: 'Interviews', icon: Target },
+    ];
+  } else {
+    navLinks = [
+      { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { path: '/arena', label: 'Practice', icon: Target },
+      { path: '/problems', label: 'Problems', icon: BookOpen },
+      { path: '/leaderboard', label: 'Leaderboard', icon: Trophy },
+      { path: '/interview', label: 'Interview', icon: Users },
+    ];
+
+    if (user.role === 'Admin') {
+      navLinks.push({ path: '/admin/analytics', label: 'Admin Panel', icon: ShieldAlert });
+    }
   }
 
   return (
@@ -102,32 +114,43 @@ export default function Navbar() {
       <div className="flex items-center gap-6">
         {token ? (
           <>
-            {/* Gamification Quick Stats - real data */}
-            <div className="hidden lg:flex items-center gap-4 bg-surface/50 border border-white/5 rounded-xl px-4 py-1.5 h-10">
-              <div className="flex items-center gap-1.5 text-orange-500 font-bold text-sm" title="Day Streak">
-                <Flame className="w-4 h-4 fill-orange-500 drop-shadow-[0_0_8px_rgba(249,115,22,0.5)]" />
-                {liveStats.streak}
+            {isAdminRoute ? (
+              /* Admin Mode — no user gamification stats */
+              <div className="hidden lg:flex items-center gap-3 bg-indigo-500/10 border border-indigo-500/30 rounded-xl px-4 py-1.5 h-10">
+                <Shield className="w-4 h-4 text-indigo-400" />
+                <span className="text-indigo-300 font-bold text-sm">Admin Mode</span>
               </div>
-              <div className="w-px h-4 bg-white/10" />
-              <div className="flex items-center gap-1.5 text-primary font-bold text-sm" title="Total XP">
-                <Zap className="w-4 h-4" />
-                {liveStats.xp.toLocaleString()} <span className="text-[10px] text-slate-400 font-medium">XP</span>
+            ) : (
+              /* Normal user — show gamification quick stats */
+              <div className="hidden lg:flex items-center gap-4 bg-surface/50 border border-white/5 rounded-xl px-4 py-1.5 h-10">
+                <div className="flex items-center gap-1.5 text-orange-500 font-bold text-sm" title="Day Streak">
+                  <Flame className="w-4 h-4 fill-orange-500 drop-shadow-[0_0_8px_rgba(249,115,22,0.5)]" />
+                  {liveStats.streak}
+                </div>
+                <div className="w-px h-4 bg-white/10" />
+                <div className="flex items-center gap-1.5 text-primary font-bold text-sm" title="Total XP">
+                  <Zap className="w-4 h-4" />
+                  {liveStats.xp.toLocaleString()} <span className="text-[10px] text-slate-400 font-medium">XP</span>
+                </div>
               </div>
-            </div>
+            )}
 
-            {/* Profile Menu Dropdown simulation */}
+            {/* Username + Logout */}
             <div className="flex items-center gap-4">
               <div className="text-right hidden sm:block">
-                <div className="text-sm font-bold text-white">{user.username || 'Developer'}</div>
-                <div className="text-xs text-primary font-medium">Lvl {liveStats.level}</div>
+                <div className="text-sm font-bold text-white">{user.username || 'Admin'}</div>
+                {isAdminRoute
+                  ? <div className="text-xs text-indigo-400 font-medium">Administrator</div>
+                  : <div className="text-xs text-primary font-medium">Lvl {liveStats.level}</div>
+                }
               </div>
-               <button 
+              <button
                 onClick={handleLogout}
                 className="w-10 h-10 rounded-xl bg-surface hover:bg-red-500/10 hover:text-red-400 border border-white/10 hover:border-red-500/30 flex items-center justify-center transition-all group"
                 title="Sign Out"
-               >
-                 <LogOut className="w-5 h-5 text-slate-400 group-hover:text-red-400 transition-colors" />
-               </button>
+              >
+                <LogOut className="w-5 h-5 text-slate-400 group-hover:text-red-400 transition-colors" />
+              </button>
             </div>
           </>
         ) : (

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import Editor from '@monaco-editor/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Play, CheckCircle, XCircle, Code2, Clock, Terminal, ChevronDown, RotateCcw, AlignLeft, Maximize2, Check, Lightbulb, ChevronRight, Target } from 'lucide-react';
+import { Play, CheckCircle, XCircle, Code2, Clock, Terminal, ChevronDown, RotateCcw, AlignLeft, Maximize2, Check, Lightbulb, ChevronRight, Target, MessageCircle, Send, Bot, User } from 'lucide-react';
 import axios from 'axios';
 
 export default function Arena() {
@@ -85,9 +85,12 @@ export default function Arena() {
   const [revealedHints, setRevealedHints] = useState(new Set()); // which hint levels have been unlocked
   const [expandedTest, setExpandedTest] = useState(null); // for diagnostic panel
 
-  // AI Hint state
-  const [aiHintText, setAiHintText] = useState('');
-  const [askingAI, setAskingAI] = useState(false);
+  // AI Chat state
+  const [aiChatOpen, setAiChatOpen] = useState(false);
+  const [aiMessages, setAiMessages] = useState([]); // [{role:'user'|'ai', content:string}]
+  const [aiInput, setAiInput] = useState('');
+  const [aiSending, setAiSending] = useState(false);
+  const aiChatEndRef = useRef(null);
 
   // Fetch problem on mount + prefetch hints
   useEffect(() => {
@@ -98,20 +101,17 @@ export default function Arena() {
         const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/v1/problems/${targetSlug}`);
         setProblem(response.data);
         
-        let initialJsTemplate = response.data.initialCode || `function solution() {\n    // Write your code here\n}`;
-        if (typeof initialJsTemplate === 'string') {
-          initialJsTemplate = initialJsTemplate.replace(/\\n/g, '\n').replace(/\\t/g, '\t');
-        }
+        const codeSnippets = response.data.codeSnippets || {};
         
-        // Since default is java, just use the built-in java fallback if java is selected
-        if (language === 'node') {
-          setCode(initialJsTemplate);
-        } else if (language === 'java') {
-          setCode(`import java.util.*;\n\nclass Solution {\n    public Object solution() {\n        // Write your code here\n        return null;\n    }\n}`);
-        } else {
-           // We will rely on the STARTER_CODE updating and setting it via useEffect or manual mapping
-          setCode(""); // temporary until the next effect or just use same strings
-        }
+        const fallback = {
+          node: "function solution() {\n    // Write your code here\n}",
+          python: "def solution():\n    # Write your code here\n    pass",
+          java: "class Solution {\n    public Object solution() {\n        // Write your code here\n        return null;\n    }\n}",
+          cpp: "class Solution {\npublic:\n    auto solution() {\n        // Write your code here\n        return 0;\n    }\n};"
+        };
+        
+        const code = codeSnippets[language] || fallback[language] || "";
+        setCode(code);
         
         setOutput({ status: 'idle', message: 'Run your code to see results here.', details: null, earnedXp: 0, passedCount: 0, totalCount: 0, runtimeMs: 0, testResults: [] });
 
@@ -132,15 +132,12 @@ export default function Arena() {
   }, [slug]);
 
   const STARTER_CODE = useMemo(() => {
-    let rawNode = problem?.initialCode || `function solution() {\n    // Your code here\n    return null;\n}`;
-    if (typeof rawNode === 'string') {
-      rawNode = rawNode.replace(/\\n/g, '\n').replace(/\\t/g, '\t');
-    }
+    const codeSnippets = problem?.codeSnippets || {};
     return {
-      node: rawNode,
-      python: `def solution():\n    # Write your code here\n    return None`,
-      java: `import java.util.*;\n\nclass Solution {\n    public Object solution() {\n        // Write your code here\n        return null;\n    }\n}`,
-      cpp: `#include <bits/stdc++.h>\nusing namespace std;\n\nclass Solution {\npublic:\n    auto solution() {\n        // Write your code here\n        return 0;\n    }\n};`,
+      node: codeSnippets.node || `function solution() {\n    // Your code here\n    return null;\n}`,
+      python: codeSnippets.python || `def solution():\n    # Write your code here\n    return None`,
+      java: codeSnippets.java || `class Solution {\n    public Object solution() {\n        // Write your code here\n        return null;\n    }\n}`,
+      cpp: codeSnippets.cpp || `class Solution {\npublic:\n    auto solution() {\n        // Write your code here\n        return 0;\n    }\n};`,
     };
   }, [problem]);
 
@@ -261,23 +258,43 @@ export default function Arena() {
     }
   };
 
-  const handleAskAI = async () => {
-    if (!problem || !code) return;
-    setAskingAI(true);
-    setAiHintText('');
+  // Auto-scroll chat to bottom
+  useEffect(() => {
+    if (aiChatOpen) aiChatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [aiMessages, aiChatOpen]);
+
+  const sendAiMessage = async (overrideMessage) => {
+    const message = overrideMessage ?? aiInput.trim();
+    if (!message || aiSending) return;
+    if (!overrideMessage) setAiInput('');
+
+    const newHistory = [...aiMessages, { role: 'user', content: message }];
+    setAiMessages(newHistory);
+    setAiSending(true);
+
     try {
       const token = localStorage.getItem('token');
       const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/v1/problems/${problem.slug}/ask-ai`, {
         code,
-        language
+        language,
+        userMessage: message,
+        history: newHistory.slice(0, -1).map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.content }))
       }, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setAiHintText(response.data.hint);
+      setAiMessages(prev => [...prev, { role: 'ai', content: response.data.hint }]);
     } catch (err) {
-      setAiHintText(err.response?.data?.message || 'Failed to generate AI Hint. Make sure GEMINI_API_KEY is configured in backend.');
+      setAiMessages(prev => [...prev, { role: 'ai', content: '⚠️ ' + (err.response?.data?.message || 'Failed to get AI response. Check GEMINI_API_KEY.') }]);
     } finally {
-      setAskingAI(false);
+      setAiSending(false);
+    }
+  };
+
+  const openAiChat = () => {
+    setAiChatOpen(true);
+    // Auto-send initial code review if chat is empty
+    if (aiMessages.length === 0) {
+      sendAiMessage('Please review my current code and give me a contextual hint.');
     }
   };
 
@@ -300,7 +317,7 @@ export default function Arena() {
             <span>Problems</span>
           </button>
           <span className="text-slate-600">/</span>
-          <span className="text-white truncate">{problem.title}</span>
+          <span className="text-white truncate">{problem.title.replace(/^\d+\.\s*/, '')}</span>
         </div>
 
         {/* Right: controls */}
@@ -410,25 +427,136 @@ export default function Arena() {
                 Hints ({hints.length})
               </button>
             )}
-            <button onClick={handleAskAI} disabled={askingAI}
-              className="py-1 px-3 flex items-center gap-1.5 text-xs font-bold transition-all bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 border border-purple-500/20 rounded-lg disabled:opacity-50">
-              {askingAI ? <div className="w-3.5 h-3.5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" /> : <Lightbulb className="w-3.5 h-3.5" />}
-              Ask AI
+            <button onClick={openAiChat}
+              className="py-1 px-3 flex items-center gap-1.5 text-xs font-bold transition-all bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 border border-purple-500/20 rounded-lg">
+              <MessageCircle className="w-3.5 h-3.5" />
+              Ask AI {aiMessages.length > 0 && <span className="bg-purple-500/30 text-purple-300 rounded-full px-1.5 py-0.5 text-[9px] font-black">{aiMessages.length}</span>}
             </button>
           </div>
           <div className="p-6 overflow-y-auto custom-scrollbar flex-1 relative">
-            {/* AI Hint Panel */}
+            {/* AI Chat Panel — replaces the old one-shot hint panel */}
             <AnimatePresence>
-              {(aiHintText || askingAI) && (
-                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
-                  className="mb-6 bg-purple-500/5 border border-purple-500/20 rounded-xl overflow-hidden relative">
-                  <button onClick={() => setAiHintText('')} className="absolute top-2 right-2 text-slate-500 hover:text-white"><XCircle className="w-4 h-4" /></button>
-                  <div className="px-4 py-3 border-b border-purple-500/15 flex items-center gap-2">
-                    <Lightbulb className="w-4 h-4 text-purple-400" />
-                    <span className="text-xs font-bold text-purple-400">AI Teaching Assistant</span>
+              {aiChatOpen && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="mb-6 bg-[#0d0b15] border border-purple-500/25 rounded-xl overflow-hidden flex flex-col"
+                >
+                  {/* Chat header */}
+                  <div className="px-4 py-3 border-b border-purple-500/15 flex items-center gap-2 bg-purple-500/5 shrink-0">
+                    <div className="w-7 h-7 rounded-lg bg-purple-500/20 flex items-center justify-center">
+                      <Bot className="w-4 h-4 text-purple-400" />
+                    </div>
+                    <div className="flex-1">
+                      <span className="text-xs font-bold text-purple-400">AI Teaching Assistant</span>
+                      <p className="text-[10px] text-purple-500/70">Ask anything about this problem</p>
+                    </div>
+                    <button
+                      onClick={() => setAiChatOpen(false)}
+                      className="text-slate-600 hover:text-white transition-colors"
+                    >
+                      <XCircle className="w-4 h-4" />
+                    </button>
                   </div>
-                  <div className="p-4 text-sm text-slate-300 leading-relaxed whitespace-pre-line">
-                    {askingAI ? 'Analyzing your code...' : aiHintText}
+
+                  {/* Messages */}
+                  <div className="flex-1 max-h-[300px] overflow-y-auto custom-scrollbar p-3 space-y-3">
+                    {aiMessages.length === 0 && aiSending && (
+                      <div className="flex items-start gap-2">
+                        <div className="w-6 h-6 rounded-full bg-purple-500/20 flex items-center justify-center shrink-0 mt-0.5">
+                          <Bot className="w-3.5 h-3.5 text-purple-400" />
+                        </div>
+                        <div className="bg-purple-500/10 border border-purple-500/15 rounded-xl px-3 py-2">
+                          <div className="flex gap-1 items-center h-4">
+                            <span className="w-1.5 h-1.5 bg-purple-400 rounded-full animate-bounce" style={{animationDelay:'0ms'}} />
+                            <span className="w-1.5 h-1.5 bg-purple-400 rounded-full animate-bounce" style={{animationDelay:'150ms'}} />
+                            <span className="w-1.5 h-1.5 bg-purple-400 rounded-full animate-bounce" style={{animationDelay:'300ms'}} />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    {aiMessages.map((msg, i) => (
+                      <div key={i} className={`flex items-start gap-2 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
+                          msg.role === 'user' ? 'bg-blue-500/20' : 'bg-purple-500/20'
+                        }`}>
+                          {msg.role === 'user'
+                            ? <User className="w-3.5 h-3.5 text-blue-400" />
+                            : <Bot className="w-3.5 h-3.5 text-purple-400" />
+                          }
+                        </div>
+                        <div className={`max-w-[85%] rounded-xl px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap ${
+                          msg.role === 'user'
+                            ? 'bg-blue-500/15 border border-blue-500/20 text-slate-200'
+                            : 'bg-purple-500/10 border border-purple-500/15 text-slate-300'
+                        }`}>
+                          {msg.content}
+                        </div>
+                      </div>
+                    ))}
+                    {aiSending && aiMessages.length > 0 && (
+                      <div className="flex items-start gap-2">
+                        <div className="w-6 h-6 rounded-full bg-purple-500/20 flex items-center justify-center shrink-0 mt-0.5">
+                          <Bot className="w-3.5 h-3.5 text-purple-400" />
+                        </div>
+                        <div className="bg-purple-500/10 border border-purple-500/15 rounded-xl px-3 py-2">
+                          <div className="flex gap-1 items-center h-4">
+                            <span className="w-1.5 h-1.5 bg-purple-400 rounded-full animate-bounce" style={{animationDelay:'0ms'}} />
+                            <span className="w-1.5 h-1.5 bg-purple-400 rounded-full animate-bounce" style={{animationDelay:'150ms'}} />
+                            <span className="w-1.5 h-1.5 bg-purple-400 rounded-full animate-bounce" style={{animationDelay:'300ms'}} />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    <div ref={aiChatEndRef} />
+                  </div>
+
+                  {/* Quick prompts */}
+                  {aiMessages.length <= 1 && (
+                    <div className="px-3 pb-2 flex gap-1.5 flex-wrap">
+                      {[
+                        'What algorithm should I use?',
+                        'Why is my solution wrong?',
+                        'What is the time complexity?',
+                      ].map(q => (
+                        <button
+                          key={q}
+                          onClick={() => sendAiMessage(q)}
+                          disabled={aiSending}
+                          className="text-[10px] px-2.5 py-1 rounded-lg bg-white/5 hover:bg-purple-500/15 border border-white/5 hover:border-purple-500/20 text-slate-400 hover:text-purple-300 transition-all disabled:opacity-40"
+                        >
+                          {q}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Input */}
+                  <div className="px-3 pb-3 shrink-0">
+                    <div className="flex gap-2 items-end">
+                      <textarea
+                        value={aiInput}
+                        onChange={e => setAiInput(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            sendAiMessage();
+                          }
+                        }}
+                        placeholder="Ask a question… (Enter to send, Shift+Enter for newline)"
+                        rows={2}
+                        disabled={aiSending}
+                        className="flex-1 bg-black/40 border border-white/10 focus:border-purple-500/40 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-600 outline-none transition-colors resize-none custom-scrollbar disabled:opacity-50"
+                      />
+                      <button
+                        onClick={() => sendAiMessage()}
+                        disabled={!aiInput.trim() || aiSending}
+                        className="p-2.5 bg-purple-600 hover:bg-purple-500 disabled:bg-white/5 disabled:text-slate-600 text-white rounded-xl transition-all shrink-0"
+                      >
+                        <Send className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 </motion.div>
               )}
@@ -476,7 +604,7 @@ export default function Arena() {
                 </motion.div>
               )}
             </AnimatePresence>
-            <h1 className="text-2xl font-black text-white mb-4 tracking-tight">{problem.title}</h1>
+            <h1 className="text-2xl font-black text-white mb-4 tracking-tight">{problem.title.replace(/^\d+\.\s*/, '')}</h1>
             <div className="flex items-center gap-3 mb-8">
                <span className={`px-2.5 py-1 rounded-md text-[11px] font-bold tracking-widest uppercase border ${
                  problem.difficulty === 'Easy' ? 'bg-green-500/10 text-green-400 border-green-500/20' :

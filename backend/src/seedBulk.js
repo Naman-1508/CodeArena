@@ -9,13 +9,13 @@ async function seedBulk() {
     await connectDB();
 
     console.log('Loading bulk problems from JSON...');
-    const rawData = fs.readFileSync('leetcode_problems.json', 'utf8');
+    const rawData = fs.readFileSync('leetcode_problems_enriched.json', 'utf8');
     const problems = JSON.parse(rawData);
 
     console.log(`Found ${problems.length} problems. Inserting into CodeArena database...`);
 
-    // We do NOT delete the existing 13 manual problems (which have actual testcases).
-    // Let's use ordered: false to skip duplicates (by slug) smoothly if they exist.
+    // Let's clear the old ones first to ensure the enriched testcases take over
+    await Problem.deleteMany({});
     try {
         await Problem.insertMany(problems, { ordered: false });
         console.log('Successfully inserted bulk problems!');

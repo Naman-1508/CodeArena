@@ -71,6 +71,10 @@ router.get('/me/stats', protect, async (req, res) => {
         const usersBelow = await User.countDocuments({ xp: { $lt: user.xp || 0 } });
         const percentile = totalUsers > 1 ? Math.round((usersBelow / totalUsers) * 100) : 100;
 
+        // Also include total submission count (all statuses, not just passed)
+        const totalSubmissions = await Submission.countDocuments({ userId: user._id, isRun: false });
+        const totalRuns = await Submission.countDocuments({ userId: user._id, isRun: true });
+
         const stats = {
             username: user.username,
             xp: user.xp || 0,
@@ -79,10 +83,13 @@ router.get('/me/stats', protect, async (req, res) => {
             easySolved,
             mediumSolved,
             hardSolved,
+            totalSolved: easySolved + mediumSolved + hardSolved,
+            totalSubmissions,
+            totalRuns,
             heatmap: heatmapData,
             solvedIds: solvedProblemIds,
             percentile,
-            topTags: topTags.slice(0, 10) // Top 10 concepts mastered
+            topTags: topTags.slice(0, 10)
         };
 
         res.status(200).json(stats);
@@ -136,16 +143,107 @@ router.get('/leaderboard', async (req, res) => {
     }
 });
 
-// GET /api/v1/users/admin/all-users -> Admin route to fetch all users
+// GET /api/v1/users/admin/all-users -> Admin: all users enriched with submission counts
 router.get('/admin/all-users', protect, async (req, res) => {
     try {
         if (req.user.role !== 'Admin') {
             return res.status(403).json({ message: 'Not authorized as admin' });
         }
-        const users = await User.find().select('username email role xp level').sort({ createdAt: -1 });
-        res.json(users);
+        const users = await User.find()
+            .select('username email role xp level currentStreak longestStreak createdAt lastActiveDate')
+            .sort({ xp: -1 })
+            .lean();
+
+        // Attach per-user submission counts in one aggregation
+        const userIds = users.map(u => u._id);
+        const subCounts = await Submission.aggregate([
+            { $match: { userId: { $in: userIds }, isRun: false } },
+            {
+                $group: {
+                    _id: '$userId',
+                    total: { $sum: 1 },
+                    passed: { $sum: { $cond: [{ $eq: ['$status', 'Pass'] }, 1, 0] } }
+                }
+            }
+        ]);
+        const subMap = {};
+        subCounts.forEach(s => { subMap[s._id.toString()] = s; });
+
+        const enriched = users.map((u, idx) => ({
+            ...u,
+            rank: idx + 1,
+            totalSubmissions: subMap[u._id.toString()]?.total || 0,
+            passedSubmissions: subMap[u._id.toString()]?.passed || 0,
+        }));
+
+        res.json(enriched);
     } catch (error) {
         res.status(500).json({ message: 'Server error fetching users' });
+    }
+});
+
+// GET /api/v1/users/admin/stats -> Admin: full platform analytics
+router.get('/admin/stats', protect, async (req, res) => {
+    try {
+        if (req.user.role !== 'Admin') {
+            return res.status(403).json({ message: 'Not authorized as admin' });
+        }
+
+        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+        const [
+            totalUsers,
+            totalSubmissions,
+            totalProblems,
+            passedSubmissions,
+            recentSubmissions,
+            difficultyBreakdown,
+            topProblems,
+            submissionTrend,
+            newUsersThisWeek,
+        ] = await Promise.all([
+            User.countDocuments(),
+            Submission.countDocuments({ isRun: false }),
+            Problem.countDocuments(),
+            Submission.countDocuments({ status: 'Pass', isRun: false }),
+            Submission.find({ isRun: false })
+                .sort({ createdAt: -1 })
+                .limit(10)
+                .populate('problemId', 'title difficulty slug')
+                .populate('userId', 'username')
+                .select('status language createdAt passedCount totalCount runtimeMs userId problemId')
+                .lean(),
+            Problem.aggregate([
+                { $group: { _id: '$difficulty', count: { $sum: 1 }, totalAttempts: { $sum: '$totalAttempts' }, totalAccepted: { $sum: '$totalAccepted' } } }
+            ]),
+            Problem.find({ totalAttempts: { $gt: 0 } })
+                .sort({ totalAttempts: -1 })
+                .limit(5)
+                .select('title slug difficulty totalAttempts totalAccepted')
+                .lean(),
+            Submission.aggregate([
+                { $match: { isRun: false, createdAt: { $gte: sevenDaysAgo } } },
+                { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, total: { $sum: 1 }, passed: { $sum: { $cond: [{ $eq: ['$status', 'Pass'] }, 1, 0] } } } },
+                { $sort: { _id: 1 } }
+            ]),
+            User.countDocuments({ createdAt: { $gte: sevenDaysAgo } }),
+        ]);
+
+        res.json({
+            totalUsers,
+            totalSubmissions,
+            totalProblems,
+            passedSubmissions,
+            acceptanceRate: totalSubmissions > 0 ? Math.round((passedSubmissions / totalSubmissions) * 100) : 0,
+            recentSubmissions,
+            difficultyBreakdown,
+            topProblems,
+            submissionTrend,
+            newUsersThisWeek,
+        });
+    } catch (error) {
+        console.error('Admin stats error:', error);
+        res.status(500).json({ message: 'Server error fetching admin stats' });
     }
 });
 

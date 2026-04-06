@@ -11,12 +11,9 @@ dotenv.config();
 
 const app = express();
 
-// Trust the first proxy (Render's load balancer) for rate limiting
-app.set('trust proxy', 1);
-
 // Security and utility middlewares
 app.use(helmet());
-app.use(cors({ origin: true, credentials: true }));
+app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173', credentials: true }));
 app.use(express.json());
 
 // Apply rate limiting to all requests

@@ -7,16 +7,11 @@ import User from '../models/User.js';
 
 const router = express.Router();
 
+// Static and specific routes first
 router.get('/problems', getProblems);
-router.get('/problems/:slug', getProblem);
-router.post('/problems/propose', protect, proposeProblem);
 router.get('/problems/admin/proposals', protect, getProposals);
 router.post('/problems/admin/proposals/:id/approve', protect, approveProposal);
-router.post('/problems/:id/submit', protect, submitProblem);
-router.post('/problems/:slug/ask-ai', protect, askAIHint);
-router.get('/submissions/:id', protect, getSubmission);
-
-// Daily Challenge - deterministic selection via day-of-year seed
+router.post('/problems/propose', protect, proposeProblem);
 router.get('/daily', async (req, res) => {
     try {
         const now = new Date();
@@ -27,69 +22,9 @@ router.get('/daily', async (req, res) => {
         if (total === 0) return res.status(404).json({ message: 'No problems available' });
 
         const index = dayOfYear % total;
-        const problem = await Problem.findOne().skip(index).select('title slug difficulty tags').lean();
+        const problem = await Problem.findOne().sort({ _id: 1 }).skip(index).select('title slug difficulty tags').lean();
 
         res.json({ problem, date: now.toISOString().split('T')[0] });
-    } catch (err) {
-        res.status(500).json({ message: 'Server error' });
-    }
-});
-
-// Get user's submissions for a specific problem
-router.get('/problems/:slug/submissions', protect, async (req, res) => {
-    try {
-        const problem = await Problem.findOne({ slug: req.params.slug }).select('_id');
-        if (!problem) return res.status(404).json({ message: 'Problem not found' });
-
-        const submissions = await Submission.find({
-            userId: req.user._id,
-            problemId: problem._id
-        })
-            .sort({ createdAt: -1 })
-            .limit(20)
-            .select('status language passedCount totalCount runtimeMs createdAt')
-            .lean();
-
-        res.json(submissions);
-    } catch (err) {
-        res.status(500).json({ message: 'Server error' });
-    }
-});
-
-// Toggle bookmark on a problem
-router.post('/problems/:slug/bookmark', protect, async (req, res) => {
-    try {
-        const problem = await Problem.findOne({ slug: req.params.slug }).select('_id');
-        if (!problem) return res.status(404).json({ message: 'Problem not found' });
-
-        const user = await User.findById(req.user._id);
-        const bookmarks = user.bookmarks || [];
-        const pidStr = problem._id.toString();
-
-        const isBookmarked = bookmarks.some(b => b.toString() === pidStr);
-        if (isBookmarked) {
-            user.bookmarks = bookmarks.filter(b => b.toString() !== pidStr);
-        } else {
-            user.bookmarks = [...bookmarks, problem._id];
-        }
-        await user.save();
-
-        res.json({ bookmarked: !isBookmarked, count: user.bookmarks.length });
-    } catch (err) {
-        res.status(500).json({ message: 'Server error' });
-    }
-});
-
-// GET /api/v1/problems/:slug/hints - returns problem hints (level-gated)
-// Returns all hints but masks levels the user hasn't paid for
-router.get('/problems/:slug/hints', protect, async (req, res) => {
-    try {
-        const problem = await Problem.findOne({ slug: req.params.slug }).select('hints').lean();
-        if (!problem) return res.status(404).json({ message: 'Problem not found' });
-
-        // Return hints sorted by level - frontend decides which to show/unlock
-        const hints = (problem.hints || []).sort((a, b) => a.level - b.level);
-        res.json({ hints });
     } catch (err) {
         res.status(500).json({ message: 'Server error' });
     }
@@ -122,5 +57,66 @@ router.get('/random', async (req, res) => {
         res.status(500).json({ message: 'Server error' });
     }
 });
+
+// Parameterized routes
+router.get('/problems/:slug', getProblem);
+router.post('/problems/:id/submit', protect, submitProblem);
+router.post('/problems/:slug/ask-ai', protect, askAIHint);
+router.get('/problems/:slug/submissions', protect, async (req, res) => {
+    try {
+        const problem = await Problem.findOne({ slug: req.params.slug }).select('_id');
+        if (!problem) return res.status(404).json({ message: 'Problem not found' });
+
+        const submissions = await Submission.find({
+            userId: req.user._id,
+            problemId: problem._id
+        })
+            .sort({ createdAt: -1 })
+            .limit(20)
+            .select('status language passedCount totalCount runtimeMs createdAt')
+            .lean();
+
+        res.json(submissions);
+    } catch (err) {
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+router.post('/problems/:slug/bookmark', protect, async (req, res) => {
+    try {
+        const problem = await Problem.findOne({ slug: req.params.slug }).select('_id');
+        if (!problem) return res.status(404).json({ message: 'Problem not found' });
+
+        const user = await User.findById(req.user._id);
+        const bookmarks = user.bookmarks || [];
+        const pidStr = problem._id.toString();
+
+        const isBookmarked = bookmarks.some(b => b.toString() === pidStr);
+        if (isBookmarked) {
+            user.bookmarks = bookmarks.filter(b => b.toString() !== pidStr);
+        } else {
+            user.bookmarks = [...bookmarks, problem._id];
+        }
+        await user.save();
+
+        res.json({ bookmarked: !isBookmarked, count: user.bookmarks.length });
+    } catch (err) {
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+router.get('/problems/:slug/hints', protect, async (req, res) => {
+    try {
+        const problem = await Problem.findOne({ slug: req.params.slug }).select('hints').lean();
+        if (!problem) return res.status(404).json({ message: 'Problem not found' });
+
+        // Return hints sorted by level - frontend decides which to show/unlock
+        const hints = (problem.hints || []).sort((a, b) => a.level - b.level);
+        res.json({ hints });
+    } catch (err) {
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// Submission polling
+router.get('/submissions/:id', protect, getSubmission);
 
 export default router;

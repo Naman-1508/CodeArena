@@ -41,8 +41,17 @@ export default function InterviewLobby() {
       const token = localStorage.getItem('token');
       if (!token) throw new Error('You must be logged in to join a room.');
 
-      // We just navigate to the room, the Room component will handle validating the token via its API call
-      navigate(`/interview/${joinToken.trim()}`);
+      // Extract token in case they pasted the full URL
+      let finalToken = joinToken.trim();
+      try {
+        const parsedUrl = new URL(finalToken);
+        const parts = parsedUrl.pathname.split('/');
+        finalToken = parts[parts.length - 1]; // get the last path segment
+      } catch (e) {
+        // Not a valid URL, treat it as a raw token
+      }
+
+      navigate(`/interview/${finalToken}`);
     } catch (err) {
       setError(err.message || 'Failed to join room.');
     } finally {

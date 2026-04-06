@@ -25,7 +25,6 @@ export default function InterviewRoom() {
   const [leftWidth, setLeftWidth] = useState(28); // percentage
   const isDragging = useRef(false);
   
-  // Try to grab local user state
   const [currentUser, setCurrentUser] = useState(() => {
     try {
       const u = localStorage.getItem('user');
@@ -34,6 +33,54 @@ export default function InterviewRoom() {
   });
 
   const chatEndRef = useRef(null);
+  const localVideoRef = useRef(null);
+  const localStreamRef = useRef(null);
+
+  // Manage Local Media Stream
+  useEffect(() => {
+    const updateMedia = async () => {
+      try {
+        // Stop existing stream if constraints changed
+        if (localStreamRef.current) {
+          localStreamRef.current.getTracks().forEach(t => t.stop());
+        }
+
+        // If neither is true, clean up and exit
+        if (!micOn && !videoOn) {
+          localStreamRef.current = null;
+          if (localVideoRef.current) localVideoRef.current.srcObject = null;
+          return;
+        }
+
+        // Request specifically what was turned on to avoid NotFoundError when hardware is missing
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          video: videoOn, 
+          audio: micOn 
+        });
+        
+        localStreamRef.current = stream;
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = stream;
+        }
+      } catch (err) {
+        console.error("Media access denied or unavailable:", err);
+        // Revert toggles on failure
+        if (videoOn) setVideoOn(false);
+        if (micOn) setMicOn(false);
+        alert("Failed to access media devices. Ensure they are connected and permissions are granted.");
+      }
+    };
+
+    updateMedia();
+  }, [micOn, videoOn]);
+
+  useEffect(() => {
+    return () => {
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach(t => t.stop());
+      }
+    };
+  }, []);
 
   // Initial Fetch & Socket Setup
   useEffect(() => {
@@ -295,12 +342,19 @@ export default function InterviewRoom() {
             <Users className="w-4 h-4 text-emerald-400" />
             <span className="text-sm font-medium">2/2</span>
           </div>
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition-colors">
-            
-            <Phone className="w-4 h-4 rotate-[135deg]" /> End Call
-          </button>
+          {roomData?.interviewerId === currentUser?._id ? (
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition-colors">
+              <Phone className="w-4 h-4 rotate-[135deg]" /> End Call
+            </button>
+          ) : (
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="flex items-center gap-2 px-4 py-2 bg-surface hover:bg-surface/80 border border-white/10 text-white rounded-lg font-medium transition-colors">
+              <Phone className="w-4 h-4 rotate-[135deg]" /> Leave Session
+            </button>
+          )}
         </div>
       </header>
 
@@ -321,12 +375,10 @@ export default function InterviewRoom() {
               </div>
             </div>
             
-            <div className="relative aspect-video bg-surface rounded-xl overflow-hidden border border-white/10 shadow-lg">
+            <div className="relative aspect-video bg-surface rounded-xl overflow-hidden border border-white/10 shadow-lg bg-black">
               <div className="absolute inset-0 flex items-center justify-center text-slate-500">
-                {videoOn ?
-                <span className="text-xs font-bold bg-gradient-to-r from-blue-400 to-primary text-transparent bg-clip-text">Camera Active</span> :
-                <Users className="w-12 h-12 opacity-20" />
-                }
+                <video ref={localVideoRef} autoPlay muted playsInline className={`w-full h-full object-cover transition-opacity duration-300 ${videoOn ? 'opacity-100' : 'opacity-0'}`} />
+                {!videoOn && <Users className="w-12 h-12 opacity-20 absolute" />}
               </div>
               <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/60 backdrop-blur-sm rounded text-xs font-medium border border-white/10">
                 You ({currentUser?.username || 'User'})
