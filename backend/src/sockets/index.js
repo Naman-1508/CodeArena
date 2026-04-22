@@ -1,7 +1,7 @@
 import { Server } from 'socket.io';
 import { createAdapter } from '@socket.io/redis-adapter';
 import redisClient from '../config/redis.js';
-import jwt from 'jsonwebtoken';
+import { verifyToken } from '@clerk/express';
 
 
 export const initSockets = (httpServer) => {
@@ -26,20 +26,24 @@ export const initSockets = (httpServer) => {
 
   const interviewNamespace = io.of('/interview');
 
-  // Secure the interview namespace with JWT
-  interviewNamespace.use((socket, next) => {
+  // Secure the interview namespace with Clerk
+  interviewNamespace.use(async (socket, next) => {
     const token = socket.handshake.auth?.token;
     if (!token) {
       return next(new Error('Authentication error: Token missing'));
     }
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+      const decoded = await verifyToken(token, {
+        secretKey: process.env.CLERK_SECRET_KEY,
+      });
       socket.user = decoded;
       next();
     } catch (err) {
+      console.error('Socket Auth Error:', err.message);
       next(new Error('Authentication error: Invalid token'));
     }
   });
+
 
   interviewNamespace.on('connection', (socket) => {
     console.log(`User Connected to Interview: ${socket.id}`);

@@ -30,15 +30,14 @@ app.get('/api/health', (req, res) => {
 });
 
 // Import and mount routes
-import authRoutes from './routes/authRoutes.js';
 import problemRoutes from './routes/problemRoutes.js';
 import interviewRoutes from './routes/interviewRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 
-app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1', problemRoutes);
 app.use('/api/v1/interviews', interviewRoutes);
 app.use('/api/v1/users', userRoutes);
+
 
 import { initSockets } from './sockets/index.js';
 import { createServer } from 'http';
