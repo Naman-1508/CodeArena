@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Editor from '@monaco-editor/react';
-import { io } from 'socket.io-client';
 import { Users, Phone, Mic, MicOff, Video, VideoOff, MessageSquare, Send, Copy, Check } from 'lucide-react';
+import { useAuth, useUser } from '@clerk/clerk-react';
 import axios from 'axios';
+import { io } from 'socket.io-client';
 
 export default function InterviewRoom() {
   const { roomId } = useParams();
@@ -24,13 +25,9 @@ export default function InterviewRoom() {
   const [copied, setCopied] = useState(false);
   const [leftWidth, setLeftWidth] = useState(28); // percentage
   const isDragging = useRef(false);
-  
-  const [currentUser, setCurrentUser] = useState(() => {
-    try {
-      const u = localStorage.getItem('user');
-      return u && u !== 'undefined' ? JSON.parse(u) : null;
-    } catch { return null; }
-  });
+  const { getToken } = useAuth();
+  const { user: currentUser } = useUser();
+  const [myDbId, setMyDbId] = useState(null);
 
   const chatEndRef = useRef(null);
   const localVideoRef = useRef(null);
@@ -86,24 +83,22 @@ export default function InterviewRoom() {
   useEffect(() => {
     let activeSocket = null;
     let isMounted = true;
-    
     if (!roomId) return;
-    const token = localStorage.getItem('token');
-    
-    if (!token) {
-      if (isMounted) navigate('/login');
-      return;
-    }
 
     const initRoom = async () => {
+      const token = await getToken();
+      if (!token) {
+        if (isMounted) navigate('/login');
+        return;
+      }
       try {
         const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/v1/interviews/join/${roomId}`, {}, {
           headers: { Authorization: `Bearer ${token}` }
         });
         
         if (!isMounted) return;
-        
         setRoomData(response.data.interview);
+        setMyDbId(response.data.myDbId);
         if (response.data.currentCode) {
           setCode(response.data.currentCode);
         }
@@ -123,7 +118,7 @@ export default function InterviewRoom() {
         activeSocket = newSocket;
 
         // My role
-        const isHost = response.data.interview.interviewerId === currentUser?._id;
+        const isHost = response.data.interview.interviewerId === response.data.myDbId;
         const role = isHost ? 'Interviewer' : 'Candidate';
         
         if (isHost) {
@@ -136,16 +131,16 @@ export default function InterviewRoom() {
           if (isHost) {
             newSocket.emit('joinRoom', { 
               roomId, 
-              userId: currentUser?._id, 
-              username: currentUser?.username,
+              userId: response.data.myDbId, 
+              username: currentUser?.username || currentUser?.firstName,
               role
             });
           } else {
             // Ask for permission instead of joining blindly
             newSocket.emit('requestEntry', {
               roomId,
-              userId: currentUser?._id,
-              username: currentUser?.username,
+              userId: response.data.myDbId,
+              username: currentUser?.username || currentUser?.firstName,
               role
             });
           }
@@ -160,8 +155,8 @@ export default function InterviewRoom() {
           setWaitingStatus('admitted');
           newSocket.emit('joinRoom', { 
             roomId, 
-            userId: currentUser?._id, 
-            username: currentUser?.username,
+            userId: response.data.myDbId, 
+            username: currentUser?.username || currentUser?.firstName,
             role: 'Candidate'
           });
         });
@@ -180,7 +175,7 @@ export default function InterviewRoom() {
         });
 
         newSocket.on('codeSync', (data) => {
-          if (data.userId !== currentUser?._id) {
+          if (data.userId !== response.data.myDbId) {
             setCode(data.code);
           }
         });
@@ -207,20 +202,20 @@ export default function InterviewRoom() {
   const handleEditorChange = (value) => {
     const val = value || '';
     setCode(val);
-    if (socket) {
-      socket.emit('codeUpdate', { roomId, code: val, userId: currentUser?._id });
+    if (socket && myDbId) {
+      socket.emit('codeUpdate', { roomId, code: val, userId: myDbId });
     }
   };
 
   const handleSendMessage = (e) => {
     e.preventDefault();
-    if (!currentMessage.trim() || !socket) return;
+    if (!currentMessage.trim() || !socket || !myDbId) return;
     
-    const role = roomData?.interviewerId === currentUser?._id ? 'Interviewer' : 'Candidate';
+    const role = roomData?.interviewerId === myDbId ? 'Interviewer' : 'Candidate';
     const msgData = {
       message: currentMessage.trim(),
-      userId: currentUser?._id,
-      username: currentUser?.username,
+      userId: myDbId,
+      username: currentUser?.username || currentUser?.firstName || 'User',
       role
     };
 
@@ -342,7 +337,7 @@ export default function InterviewRoom() {
             <Users className="w-4 h-4 text-emerald-400" />
             <span className="text-sm font-medium">2/2</span>
           </div>
-          {roomData?.interviewerId === currentUser?._id ? (
+          {roomData?.interviewerId === myDbId ? (
             <button
               onClick={() => navigate('/dashboard')}
               className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition-colors">
@@ -371,7 +366,7 @@ export default function InterviewRoom() {
                 <Users className="w-12 h-12 opacity-20" />
               </div>
               <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/60 backdrop-blur-sm rounded text-xs font-medium border border-white/10">
-                {roomData?.interviewerId === currentUser?._id ? 'Candidate (Waiting...)' : 'Interviewer (Host)'}
+                {roomData?.interviewerId === myDbId ? 'Candidate (Waiting...)' : 'Interviewer (Host)'}
               </div>
             </div>
             
@@ -381,7 +376,7 @@ export default function InterviewRoom() {
                 {!videoOn && <Users className="w-12 h-12 opacity-20 absolute" />}
               </div>
               <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/60 backdrop-blur-sm rounded text-xs font-medium border border-white/10">
-                You ({currentUser?.username || 'User'})
+                You ({currentUser?.username || currentUser?.firstName || 'User'})
               </div>
             </div>
 

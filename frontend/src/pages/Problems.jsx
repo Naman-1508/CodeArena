@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BookOpen, Search, ChevronRight, Filter, ChevronDown, Tag, CheckCircle2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '@clerk/clerk-react';
 import axios from 'axios';
 
 const DIFFICULTIES = ['All', 'Easy', 'Medium', 'Hard'];
@@ -13,6 +14,7 @@ const DIFF_BG = {
 };
 
 export default function Problems() {
+  const { getToken } = useAuth();
   const [problems, setProblems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('All');
@@ -37,7 +39,7 @@ export default function Problems() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const token = localStorage.getItem('token');
+        const token = await getToken();
         const [probRes, statsRes] = await Promise.all([
           axios.get(`${import.meta.env.VITE_API_URL}/api/v1/problems`),
           token ? axios.get(`${import.meta.env.VITE_API_URL}/api/v1/users/me/stats`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: { solvedIds: [] } })) : Promise.resolve({ data: { solvedIds: [] } })
@@ -94,8 +96,8 @@ export default function Problems() {
         className="grid grid-cols-3 gap-3 mb-6">
         {(['Easy', 'Medium', 'Hard']).map(d => (
           <button key={d} onClick={() => setFilter(filter === d ? 'All' : d)}
-            className={`p-4 rounded-2xl border text-center transition-all cursor-pointer ${
-              filter === d ? DIFF_BG[d] + ' ' + DIFF_COLOR[d] : 'bg-[#0a0a0a] border-white/5 text-slate-500 hover:border-white/10'
+            className={`p-4 rounded-2xl border text-center transition-all cursor-pointer glass-button ${
+              filter === d ? DIFF_BG[d] + ' ' + DIFF_COLOR[d] : 'glass-panel border-white/5 text-slate-500 hover:border-white/10'
             }`}>
             <div className="text-2xl font-black">{counts[d]}</div>
             <div className="text-[10px] font-bold uppercase tracking-widest mt-0.5">{d}</div>
@@ -111,7 +113,7 @@ export default function Problems() {
           <input
             value={search} onChange={e => setSearch(e.target.value)}
             placeholder="Search by title or tag…"
-            className="w-full bg-[#0a0a0a] border border-white/5 focus:border-primary/40 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-600 outline-none transition-colors"
+            className="w-full glass-panel border border-white/5 focus:border-primary/40 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-600 outline-none transition-colors"
           />
         </div>
         <div className="flex gap-2 items-center flex-wrap md:flex-nowrap">
@@ -121,7 +123,7 @@ export default function Problems() {
             <button 
               onClick={() => setShowTags(!showTags)}
               className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-all ${
-                selectedTags.length > 0 ? 'bg-blue-500/10 border-blue-500/30 text-blue-400' : 'bg-[#0a0a0a] border-white/5 text-slate-400 hover:text-slate-200 hover:border-white/10'
+                selectedTags.length > 0 ? 'bg-blue-500/10 border-blue-500/30 text-blue-400' : 'glass-panel border-white/5 text-slate-400 hover:text-slate-200 hover:border-white/10'
               }`}
             >
               <Tag className="w-4 h-4" />
@@ -139,7 +141,7 @@ export default function Problems() {
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 10, scale: 0.95 }}
                   transition={{ duration: 0.15 }}
-                  className="absolute right-0 top-[calc(100%+8px)] w-[320px] sm:w-[400px] max-h-[400px] overflow-y-auto bg-[#0a0a0a] border border-white/10 rounded-2xl shadow-2xl z-50 p-4 custom-scrollbar"
+                  className="absolute right-0 top-[calc(100%+8px)] w-[320px] sm:w-[400px] max-h-[400px] overflow-y-auto glass-panel border border-white/10 rounded-2xl shadow-2xl z-50 p-4 custom-scrollbar"
                 >
                   <div className="flex items-center justify-between mb-3 pb-3 border-b border-white/5">
                     <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Filter by Topic</span>
@@ -188,7 +190,7 @@ export default function Problems() {
 
       {/* Table */}
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
-        className="bg-[#0a0a0a] border border-white/5 rounded-2xl overflow-hidden">
+        className="glass-panel border border-white/5 rounded-2xl overflow-hidden">
 
         {/* Header row */}
         <div className="grid grid-cols-12 px-5 py-3 border-b border-white/5 text-[10px] font-bold text-slate-600 uppercase tracking-widest">

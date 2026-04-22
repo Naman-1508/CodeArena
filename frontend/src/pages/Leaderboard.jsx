@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Trophy, Flame, Zap, ChevronRight, Crown, Medal } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useUser } from '@clerk/clerk-react';
 import axios from 'axios';
 
 const RANK_STYLES = {
@@ -13,17 +14,11 @@ const RANK_STYLES = {
 const LEVEL_NAMES = ['', 'Novice', 'Apprentice', 'Coder', 'Developer', 'Engineer', 'Architect', 'Expert', 'Master', 'Grandmaster', 'Legend'];
 
 export default function Leaderboard() {
+  const { user: currentUser } = useUser();
   const [leaders, setLeaders] = useState([]);
   const [myRank, setMyRank] = useState(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-
-  const currentUser = (() => {
-    try {
-      const u = localStorage.getItem('user');
-      return u && u !== 'undefined' ? JSON.parse(u) : null;
-    } catch { return null; }
-  })();
 
   useEffect(() => {
     const fetchLeaderboard = async () => {
@@ -71,7 +66,7 @@ export default function Leaderboard() {
       {/* My Rank Banner */}
       {myRank && (
         <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-          className="mb-6 p-4 bg-primary/10 border border-primary/20 rounded-2xl flex items-center justify-between gap-4">
+          className="mb-6 p-4 glass-panel border border-primary/20 rounded-2xl flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center font-black text-lg text-white">
               {myRank.username.charAt(0).toUpperCase()}
@@ -105,7 +100,7 @@ export default function Leaderboard() {
       </div>
 
       {/* Table */}
-      <div className="bg-[#0a0a0a] border border-white/5 rounded-2xl overflow-hidden">
+      <div className="glass-panel border border-white/5 rounded-2xl overflow-hidden">
         <div className="grid grid-cols-[48px_1fr_auto_auto_auto] items-center px-4 py-3 border-b border-white/5 text-xs font-bold text-slate-500 uppercase tracking-wider">
           <span>#</span>
           <span>User</span>

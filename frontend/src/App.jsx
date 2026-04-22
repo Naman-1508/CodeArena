@@ -12,31 +12,39 @@ import MockInterview from './pages/MockInterview';
 import InterviewLobby from './pages/InterviewLobby';
 import InterviewRoom from './pages/InterviewRoom';
 import AdminDashboard from './pages/AdminDashboard';
+import SSOCallback from './pages/SSOCallback';
+import { ClerkProvider, useUser } from '@clerk/clerk-react';
 
-// ── Role Guards ──────────────────────────────────────────────────────
-function getRole() {
-  try {
-    const u = JSON.parse(localStorage.getItem('user') || '{}');
-    return u.role || 'User';
-  } catch {
-    return 'User';
-  }
+// Retrieve Clerk key
+const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+
+if (!PUBLISHABLE_KEY) {
+  console.warn("Missing Publishable Key");
 }
 
-/** Only admins can access admin routes — others go to /dashboard */
+function getRole(user) {
+  return user?.publicMetadata?.role || 'User';
+}
+
 function AdminRoute({ children }) {
-  return getRole() === 'Admin' ? children : <Navigate to="/dashboard" replace />;
+  const { isLoaded, isSignedIn, user } = useUser();
+  if (!isLoaded) return <div className="min-h-screen bg-background text-white flex items-center justify-center">Loading...</div>;
+  if (!isSignedIn) return <Navigate to="/login" replace />;
+  return getRole(user) === 'Admin' ? children : <Navigate to="/dashboard" replace />;
 }
 
-/** Normal users only — admins are always redirected to /admin */
 function UserRoute({ children }) {
-  return getRole() === 'Admin' ? <Navigate to="/admin" replace /> : children;
+  const { isLoaded, isSignedIn, user } = useUser();
+  if (!isLoaded) return <div className="min-h-screen bg-background text-white flex items-center justify-center">Loading...</div>;
+  if (!isSignedIn) return <Navigate to="/login" replace />;
+  return getRole(user) === 'Admin' ? <Navigate to="/admin" replace /> : children;
 }
 // ────────────────────────────────────────────────────────────────────
 
 function App() {
   return (
-    <BrowserRouter>
+    <ClerkProvider publishableKey={PUBLISHABLE_KEY} afterSignOutUrl="/">
+      <BrowserRouter>
       <div className="h-screen bg-background text-slate-100 selection:bg-primary/30 flex flex-col">
         <Navbar />
         <main className="flex-1 flex flex-col min-h-0 overflow-y-auto scrollbar-none">
@@ -46,6 +54,7 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/reset-password/:token" element={<ResetPassword />} />
+            <Route path="/sso-callback" element={<SSOCallback />} />
 
             {/* User-only routes — admins get bounced to /admin */}
             <Route path="/dashboard"     element={<UserRoute><Dashboard /></UserRoute>} />
@@ -64,6 +73,7 @@ function App() {
         </main>
       </div>
     </BrowserRouter>
+    </ClerkProvider>
   );
 }
 

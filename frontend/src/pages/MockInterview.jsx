@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Editor from '@monaco-editor/react';
 import { Play, Clock, CheckCircle, XCircle, ChevronDown, RotateCcw, AlertTriangle, Target } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useAuth } from '@clerk/clerk-react';
 import axios from 'axios';
 
 const DURATIONS = [
@@ -23,6 +24,7 @@ function formatTime(seconds) {
 
 export default function MockInterview() {
   const navigate = useNavigate();
+  const { getToken } = useAuth();
   const [phase, setPhase] = useState('setup'); // setup | active | finished
   const [difficulty, setDifficulty] = useState('Medium');
   const [duration, setDuration] = useState(45 * 60);
@@ -100,7 +102,7 @@ export default function MockInterview() {
   };
 
   const pollResult = async (submissionId, started) => {
-    const token = localStorage.getItem('token');
+    const token = await getToken();
     let attempts = 0;
     while (attempts < 30) {
       try {
@@ -134,7 +136,7 @@ export default function MockInterview() {
   const handleSubmit = async () => {
     if (!problem) return;
     setSubmitting(true);
-    const token = localStorage.getItem('token');
+    const token = await getToken();
     if (!token) return;
     try {
       const started = Date.now();
@@ -159,7 +161,7 @@ export default function MockInterview() {
     return (
       <div className="flex-1 flex items-center justify-center bg-background p-6">
         <motion.div initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }}
-          className="w-full max-w-lg bg-[#0a0a0a] border border-white/10 rounded-3xl p-8 shadow-2xl">
+          className="w-full max-w-lg glass-panel rounded-3xl p-8">
           <div className="flex items-center gap-3 mb-6">
             <div className="w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
               <Target className="w-6 h-6 text-primary" />
@@ -204,7 +206,7 @@ export default function MockInterview() {
           {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
 
           <button onClick={startInterview} disabled={loading}
-            className="w-full py-3.5 bg-primary hover:bg-blue-500 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50">
+            className="w-full py-3.5 bg-primary hover:bg-primary-light text-white font-bold rounded-xl glass-button flex items-center justify-center gap-2 disabled:opacity-50">
             {loading
               ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               : <Play className="w-4 h-4 fill-white" />}
@@ -227,7 +229,7 @@ export default function MockInterview() {
     return (
       <div className="flex-1 flex items-center justify-center bg-background p-6">
         <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
-          className="w-full max-w-md bg-[#0a0a0a] border border-white/10 rounded-3xl p-8 shadow-2xl text-center">
+          className="w-full max-w-md glass-panel rounded-3xl p-8 text-center">
           
           <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-5 ${passed ? 'bg-green-500/15 border border-green-500/30' : 'bg-red-500/15 border border-red-500/30'}`}>
             {passed ? <CheckCircle className="w-10 h-10 text-green-400" /> : <XCircle className="w-10 h-10 text-red-400" />}
@@ -258,7 +260,7 @@ export default function MockInterview() {
             </button>
             {problem && (
               <Link to={`/arena/${problem.slug}`}
-                className="flex-1 py-2.5 rounded-xl bg-primary hover:bg-blue-500 text-white text-sm font-bold transition-all flex items-center justify-center">
+                className="flex-1 py-2.5 rounded-xl bg-primary hover:bg-primary-light text-white text-sm font-bold glass-button flex items-center justify-center">
                 Review in Arena
               </Link>
             )}

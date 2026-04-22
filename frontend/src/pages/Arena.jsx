@@ -3,11 +3,13 @@ import Editor from '@monaco-editor/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Play, CheckCircle, XCircle, Code2, Clock, Terminal, ChevronDown, RotateCcw, AlignLeft, Maximize2, Check, Lightbulb, ChevronRight, Target, MessageCircle, Send, Bot, User } from 'lucide-react';
+import { useAuth } from '@clerk/clerk-react';
 import axios from 'axios';
 
 export default function Arena() {
   const { slug } = useParams();
   const navigate = useNavigate();
+  const { getToken } = useAuth();
 
   const [problem, setProblem] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -97,7 +99,18 @@ export default function Arena() {
     const fetchProblem = async () => {
       setLoading(true);
       try {
-        const targetSlug = slug || 'two-sum';
+        let targetSlug = slug;
+        if (!targetSlug) {
+          try {
+            const dailyRes = await axios.get(`${import.meta.env.VITE_API_URL}/api/v1/daily`);
+            if (dailyRes.data?.problem?.slug) {
+              targetSlug = dailyRes.data.problem.slug;
+            }
+          } catch (e) {
+            console.error('Failed to fetch daily challenge, falling back to two-sum');
+            targetSlug = 'two-sum';
+          }
+        }
         const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/v1/problems/${targetSlug}`);
         setProblem(response.data);
         
@@ -116,7 +129,7 @@ export default function Arena() {
         setOutput({ status: 'idle', message: 'Run your code to see results here.', details: null, earnedXp: 0, passedCount: 0, totalCount: 0, runtimeMs: 0, testResults: [] });
 
         // Prefetch hints if available (non-blocking)
-        const token = localStorage.getItem('token');
+        const token = await getToken();
         if (token) {
           axios.get(`${import.meta.env.VITE_API_URL}/api/v1/problems/${targetSlug}/hints`, {
             headers: { Authorization: `Bearer ${token}` }
@@ -164,7 +177,7 @@ export default function Arena() {
 
   const pollSubmission = async (submissionId) => {
     try {
-      const token = localStorage.getItem('token');
+      const token = await getToken();
       const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/v1/submissions/${submissionId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -232,7 +245,7 @@ export default function Arena() {
     setActiveTab('output');
 
     try {
-      const token = localStorage.getItem('token');
+      const token = await getToken();
       if (!token) {
         setOutput({ status: 'error', message: 'You must be logged in to submit code.', details: null });
         return;
@@ -273,7 +286,7 @@ export default function Arena() {
     setAiSending(true);
 
     try {
-      const token = localStorage.getItem('token');
+      const token = await getToken();
       const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/v1/problems/${problem.slug}/ask-ai`, {
         code,
         language,
@@ -284,7 +297,7 @@ export default function Arena() {
       });
       setAiMessages(prev => [...prev, { role: 'ai', content: response.data.hint }]);
     } catch (err) {
-      setAiMessages(prev => [...prev, { role: 'ai', content: '⚠️ ' + (err.response?.data?.message || 'Failed to get AI response. Check GEMINI_API_KEY.') }]);
+      setAiMessages(prev => [...prev, { role: 'ai', content: '⚠️ ' + (err.response?.data?.message || 'Failed to get AI response. Check GROQ_API_KEY.') }]);
     } finally {
       setAiSending(false);
     }
@@ -297,6 +310,8 @@ export default function Arena() {
       sendAiMessage('Please review my current code and give me a contextual hint.');
     }
   };
+
+
 
   if (loading || !problem) {
     return (
@@ -441,7 +456,7 @@ export default function Arena() {
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
                   exit={{ opacity: 0, height: 0 }}
-                  className="mb-6 bg-[#0d0b15] border border-purple-500/25 rounded-xl overflow-hidden flex flex-col"
+                  className="mb-6 glass-panel border border-purple-500/25 rounded-xl overflow-hidden flex flex-col shadow-[0_0_30px_rgba(168,85,247,0.15)]"
                 >
                   {/* Chat header */}
                   <div className="px-4 py-3 border-b border-purple-500/15 flex items-center gap-2 bg-purple-500/5 shrink-0">
@@ -849,24 +864,12 @@ export default function Arena() {
                       </div>
                       
                       <div className="mt-6">
-                        {output.details && output.details.includes('AI Evaluation Verdict') ? (
-                          <div className="rounded-xl border border-purple-500/20 bg-purple-500/5 p-5 shadow-inner">
-                            <div className="flex items-center gap-2 mb-3">
-                              <Lightbulb className="w-5 h-5 text-purple-400" />
-                              <span className="font-black text-purple-400 text-sm tracking-wide">AI Evaluation Verdict</span>
-                            </div>
-                            <div className="prose prose-invert prose-purple max-w-none text-sm text-slate-300 leading-relaxed whitespace-pre-wrap">
-                               {output.details.replace('🤖 AI Evaluation Verdict:\\n', '').replace('🤖 AI Evaluation Verdict:\n', '')}
-                            </div>
+                        <div className="bg-[#1e1e1e] rounded-xl p-5 border border-white/5 shadow-inner">
+                          <div className="text-slate-500 text-xs text-[10px] font-bold uppercase tracking-widest mb-3">Raw Sandbox Output</div>
+                          <div className="whitespace-pre-wrap font-mono text-slate-300 bg-black/40 p-4 rounded-lg border border-white/5 max-h-[300px] overflow-y-auto custom-scrollbar text-sm">
+                             {output.details || 'No output generated.'}
                           </div>
-                        ) : (
-                          <div className="bg-[#1e1e1e] rounded-xl p-5 border border-white/5 shadow-inner">
-                            <div className="text-slate-500 text-xs text-[10px] font-bold uppercase tracking-widest mb-3">Raw Sandbox Output</div>
-                            <div className="whitespace-pre-wrap font-mono text-slate-300 bg-black/40 p-4 rounded-lg border border-white/5 max-h-[300px] overflow-y-auto custom-scrollbar text-sm">
-                               {output.details || 'No output generated.'}
-                            </div>
-                          </div>
-                        )}
+                        </div>
                       </div>
                     </div>
                   )}

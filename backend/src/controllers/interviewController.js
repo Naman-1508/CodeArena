@@ -53,7 +53,7 @@ export const joinRoom = async (req, res) => {
     // Fetch initial room state from Redis (current code logic)
     const currentCode = await redisClient.get(`room:${token}:code`);
 
-    res.json({ interview, currentCode });
+    res.json({ interview, currentCode, myDbId: req.user?._id });
   } catch (error) {
     res.status(500).json({ message: 'Server Error' });
   }

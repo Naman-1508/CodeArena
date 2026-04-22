@@ -5,7 +5,6 @@ import User from '../models/User.js';
 import { addExecutionJob, executionQueue } from '../services/queueService.js';
 import axios from 'axios';
 import Joi from 'joi';
-import { GoogleGenAI } from '@google/genai';
 
 // @route   GET /api/v1/problems
 // @desc    Get all problems
@@ -333,9 +332,9 @@ export const approveProposal = async (req, res) => {
 // @desc    Ask AI for a hint / chat message on the current problem code
 export const askAIHint = async (req, res) => {
   try {
-    const aiKey = process.env.GEMINI_API_KEY;
+    const aiKey = process.env.GROQ_API_KEY;
     if (!aiKey) {
-      return res.status(500).json({ message: 'Server AI Key is missing.' });
+      return res.status(500).json({ message: 'Server Groq API Key is missing.' });
     }
 
     const problem = await Problem.findOne({ slug: req.params.slug });
@@ -343,9 +342,7 @@ export const askAIHint = async (req, res) => {
 
     const { code, language, userMessage, history } = req.body;
 
-    const ai = new GoogleGenAI({ apiKey: aiKey });
-
-    // Build a system context and then append the conversation history
+    // Build a system context
     const systemContext = `You are an expert, encouraging programming tutor on CodeArena. 
 The student is working on: "${problem.title}" (${problem.difficulty}).
 
@@ -364,26 +361,41 @@ CRITICAL RULES:
 4. Use friendly markdown with **bold** for key terms.
 5. If the student asks something off-topic, gently redirect to the problem.`;
 
-    // Build conversation: prior history + current user message
+    // Construct the messages array for the chat completion
+    const messages = [
+      { role: 'system', content: systemContext }
+    ];
+
     const priorHistory = Array.isArray(history) ? history : [];
-    const currentQuestion = userMessage || 'Please review my code and give me a hint on how to proceed.';
-
-    // Format as a multi-turn prompt
-    let fullPrompt = systemContext + '\n\n--- Conversation ---\n';
     priorHistory.forEach(msg => {
-      fullPrompt += `\n${msg.role === 'user' ? 'Student' : 'Tutor'}: ${msg.content}`;
-    });
-    fullPrompt += `\nStudent: ${currentQuestion}\nTutor:`;
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: fullPrompt,
-      config: { temperature: 0.6, maxOutputTokens: 400 }
+      messages.push({
+        role: msg.role === 'user' ? 'user' : 'assistant',
+        content: msg.content
+      });
     });
 
-    res.json({ hint: response.text.trim() });
+    const currentQuestion = userMessage || 'Please review my code and give me a hint on how to proceed.';
+    messages.push({ role: 'user', content: currentQuestion });
+
+    const response = await axios.post(
+      'https://api.groq.com/openai/v1/chat/completions',
+      {
+        model: 'llama-3.3-70b-versatile',
+        messages,
+        temperature: 0.6,
+        max_tokens: 400
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${aiKey}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    res.json({ hint: response.data.choices[0].message.content.trim() });
   } catch (error) {
-    console.error('AI Hint Error:', error);
+    console.error('AI Hint Error:', error.response?.data || error.message);
     res.status(500).json({ message: 'Failed to generate AI response' });
   }
 };

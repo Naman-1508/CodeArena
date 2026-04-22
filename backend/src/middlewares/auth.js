@@ -6,24 +6,46 @@ import User from '../models/User.js';
 
 
 
+import { clerkClient, verifyToken } from '@clerk/express';
+
 export const protect = async (req, res, next) => {
   let token;
-
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
     try {
       token = req.headers.authorization.split(' ')[1];
+      
+      // Clerk's verifyToken takes the token directly
+      const decoded = await verifyToken(token, {
+        secretKey: process.env.CLERK_SECRET_KEY,
+      });
 
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+      // Fetch user from DB using the clerk auth ID if they sync it, 
+      // or we can fallback to email if clerk email matches DB
+      // For now, let's assume the DB user ID matches Clerk's external ID, or we fetch user by Clerk ID
+      // If we don't have user in DB yet, we might upsert it.
+      
+      // We will look up by email for simplicity in migration, or clerkId if added
+      const clerkUser = await clerkClient.users.getUser(decoded.sub);
+      const email = clerkUser.emailAddresses[0]?.emailAddress;
 
-      const user = await User.findById(decoded.id).select('-passwordHash');
-      if (!user) {
-        res.status(401).json({ message: 'Not authorized, user not found' });
-        return;
+      let user = await User.findOne({ email });
+      
+      if (!user && email) {
+        // Upsert logic for new Clerk users logging in for the first time
+        user = await User.create({
+          username: clerkUser.username || email.split('@')[0],
+          email: email,
+          passwordHash: 'CLERK_MANAGED', // Password managed by Clerk
+          role: clerkUser.publicMetadata?.role || 'User'
+        });
+      } else if (!user) {
+        return res.status(401).json({ message: 'Not authorized, user not found' });
       }
 
       req.user = user;
       next();
     } catch (error) {
+      console.error(error);
       res.status(401).json({ message: 'Not authorized, token failed' });
     }
   } else {

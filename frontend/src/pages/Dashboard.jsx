@@ -2,10 +2,13 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Flame, Trophy, Target, Zap, BookOpen, ArrowRight, X, Send, ChevronRight, Lock, CheckCircle, Clock, Code2, Star, TrendingUp, Users, BarChart2, Medal } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '@clerk/clerk-react';
 import axios from 'axios';
 import SubmissionHeatmap from '../components/SubmissionHeatmap';
 
 export default function Dashboard() {
+  const { getToken } = useAuth();
+  
   const [userStats, setUserStats] = useState({
     username: 'Developer',
     xp: 0,
@@ -29,7 +32,7 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const token = localStorage.getItem('token');
+        const token = await getToken();
         if (!token) {
           setStatsLoading(false);
           return;
@@ -98,7 +101,7 @@ export default function Dashboard() {
     setProposeError('');
     setProposing(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = await getToken();
       await axios.post(`${import.meta.env.VITE_API_URL}/api/v1/problems/propose`, {
         ...proposeForm,
         tags: proposeForm.tags.split(',').map(t => t.trim()).filter(Boolean),
@@ -127,7 +130,7 @@ export default function Dashboard() {
       {/* ── HERO BANNER ─────────────────────────────────────────────── */}
       <motion.header
         initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}
-        className="mb-8 relative overflow-hidden rounded-3xl border border-white/5 bg-[#0a0a0a] p-7 shadow-2xl shrink-0">
+        className="mb-8 relative overflow-hidden rounded-3xl glass-panel p-7 shadow-2xl shrink-0">
         <div className="absolute inset-0 bg-gradient-to-r from-blue-900/15 via-purple-900/15 to-transparent" />
         <div className="absolute top-0 right-0 w-80 h-80 bg-primary/8 blur-[90px] rounded-full" />
 
@@ -179,7 +182,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-8">
         {/* XP Card */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-          className="col-span-1 lg:col-span-2 bg-[#0a0a0a] border border-white/5 p-7 rounded-3xl relative overflow-hidden">
+          className="col-span-1 lg:col-span-2 glass-panel p-7 rounded-3xl relative overflow-hidden hover:shadow-[0_8px_32px_rgba(59,130,246,0.15)] transition-all">
           <div className="absolute top-0 right-0 w-56 h-56 bg-primary/5 blur-[80px] rounded-full pointer-events-none" />
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
@@ -204,7 +207,7 @@ export default function Dashboard() {
 
         {/* Solved Card */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
-          className="bg-[#0a0a0a] border border-white/5 p-7 rounded-3xl">
+          className="glass-panel p-7 rounded-3xl hover:shadow-[0_8px_32px_rgba(34,211,238,0.15)] transition-all">
           <div className="flex items-center gap-3 mb-6">
             <div className="p-2.5 bg-accent/10 border border-accent/20 rounded-xl"><Target className="w-5 h-5 text-accent" /></div>
             <h2 className="text-lg font-bold">Algorithms Solved</h2>
@@ -233,7 +236,7 @@ export default function Dashboard() {
       {/* ── ADVANCED ANALYTICS ROW ────────────────────────────────────── */}
       {userStats.topTags && userStats.topTags.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
-          className="mb-8 p-7 bg-[#0a0a0a] border border-white/5 rounded-3xl">
+          className="mb-8 p-7 glass-panel rounded-3xl">
           <div className="flex items-center gap-3 mb-6">
             <div className="p-2.5 bg-pink-500/10 border border-pink-500/20 rounded-xl"><BookOpen className="w-5 h-5 text-pink-400" /></div>
             <h2 className="text-lg font-bold">Strongest Topics</h2>
@@ -257,7 +260,7 @@ export default function Dashboard() {
       {/* ── DAILY CHALLENGE ─────────────────────────────────────────── */}
       {dailyChallenge?.problem && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
-          className="mb-6 bg-gradient-to-r from-primary/10 via-blue-900/10 to-transparent border border-primary/20 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          className="mb-6 bg-gradient-to-r from-primary/10 via-blue-900/10 to-transparent border border-primary/20 backdrop-blur-xl rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-lg animate-glow">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-primary/20 border border-primary/30 flex items-center justify-center shrink-0">
               <Star className="w-6 h-6 text-primary" />
@@ -281,7 +284,7 @@ export default function Dashboard() {
             </div>
           </div>
           <Link to={`/arena/${dailyChallenge.problem.slug}`}
-            className="px-5 py-2.5 bg-primary hover:bg-blue-500 text-white text-sm font-bold rounded-xl transition-all whitespace-nowrap shadow-[0_0_15px_rgba(59,130,246,0.2)] hover:shadow-[0_0_20px_rgba(59,130,246,0.4)] flex items-center gap-2">
+            className="px-5 py-2.5 glass-button bg-primary hover:bg-blue-500 text-white text-sm font-bold rounded-xl transition-all whitespace-nowrap shadow-[0_0_15px_rgba(59,130,246,0.2)] hover:shadow-[0_0_20px_rgba(59,130,246,0.4)] flex items-center gap-2">
             Solve Today's Problem <ArrowRight className="w-4 h-4" />
           </Link>
         </motion.div>
@@ -290,7 +293,7 @@ export default function Dashboard() {
       {/* ── RECENT SUBMISSIONS ───────────────────────────────────────── */}
       {recentSubmissions.length > 0 && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }}
-          className="mb-8 bg-[#0a0a0a] border border-white/5 rounded-2xl overflow-hidden">
+          className="mb-8 glass-panel rounded-2xl overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
             <div className="flex items-center gap-2">
               <Code2 className="w-4 h-4 text-slate-400" />
@@ -333,7 +336,7 @@ export default function Dashboard() {
         className="mb-8 grid grid-cols-1 lg:grid-cols-3 gap-5">
 
         {/* Percentile Gauge Card */}
-        <div className="bg-[#0a0a0a] border border-white/5 rounded-3xl p-7 flex flex-col items-center justify-center relative overflow-hidden">
+        <div className="glass-panel rounded-3xl p-7 flex flex-col items-center justify-center relative overflow-hidden hover:-translate-y-1 transition-transform duration-300">
           <div className="absolute inset-0 bg-gradient-to-br from-violet-900/10 to-transparent" />
           <div className="relative z-10 text-center">
             <div className="p-3 bg-violet-500/10 border border-violet-500/20 rounded-2xl inline-flex mb-4">
@@ -356,7 +359,7 @@ export default function Dashboard() {
         </div>
 
         {/* Your Rank */}
-        <div className="bg-[#0a0a0a] border border-white/5 rounded-3xl p-7 flex flex-col justify-center relative overflow-hidden">
+        <div className="glass-panel rounded-3xl p-7 flex flex-col justify-center relative overflow-hidden hover:-translate-y-1 transition-transform duration-300">
           <div className="absolute inset-0 bg-gradient-to-br from-amber-900/10 to-transparent" />
           <div className="relative z-10">
             <div className="flex items-center gap-3 mb-5">
@@ -387,7 +390,7 @@ export default function Dashboard() {
         </div>
 
         {/* Top 5 Users */}
-        <div className="bg-[#0a0a0a] border border-white/5 rounded-3xl p-7 flex flex-col relative overflow-hidden">
+        <div className="glass-panel rounded-3xl p-7 flex flex-col relative overflow-hidden hover:-translate-y-1 transition-transform duration-300">
           <div className="absolute inset-0 bg-gradient-to-br from-cyan-900/10 to-transparent" />
           <div className="relative z-10 flex flex-col h-full">
             <div className="flex items-center gap-3 mb-5">
@@ -426,8 +429,8 @@ export default function Dashboard() {
       {/* ── QUICK ACTIONS ───────────────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Link to="/problems" className="block group">
-          <motion.div whileHover={{ y: -3 }} className="bg-[#0a0a0a] border border-white/5 hover:border-primary/40 p-5 rounded-2xl relative overflow-hidden transition-colors h-full flex flex-col justify-center">
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+          <motion.div whileHover={{ y: -5, scale: 1.02 }} className="glass-panel hover:border-primary/40 p-5 rounded-2xl relative overflow-hidden transition-all duration-300 h-full flex flex-col justify-center shadow-lg hover:shadow-[0_0_20px_rgba(59,130,246,0.2)]">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
             <div className="flex items-center gap-3 mb-1">
               <div className="p-2.5 bg-primary/10 border border-primary/20 rounded-xl text-primary"><Target className="w-5 h-5 flex-shrink-0" /></div>
               <div>
@@ -440,8 +443,8 @@ export default function Dashboard() {
         </Link>
         
         <Link to="/mock-interview" className="block group">
-          <motion.div whileHover={{ y: -3 }} className="bg-[#0a0a0a] border border-white/5 hover:border-orange-500/40 p-5 rounded-2xl relative overflow-hidden transition-colors h-full flex flex-col justify-center">
-            <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+          <motion.div whileHover={{ y: -5, scale: 1.02 }} className="glass-panel hover:border-orange-500/40 p-5 rounded-2xl relative overflow-hidden transition-all duration-300 h-full flex flex-col justify-center shadow-lg hover:shadow-[0_0_20px_rgba(249,115,22,0.2)]">
+            <div className="absolute inset-0 bg-gradient-to-br from-orange-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
             <div className="flex items-center gap-3 mb-1">
               <div className="p-2.5 bg-orange-500/10 border border-orange-500/20 rounded-xl text-orange-400"><Clock className="w-5 h-5 flex-shrink-0" /></div>
               <div>
@@ -454,8 +457,8 @@ export default function Dashboard() {
         </Link>
 
         <Link to="/interview" className="block group">
-          <motion.div whileHover={{ y: -3 }} className="bg-[#0a0a0a] border border-white/5 hover:border-accent/40 p-5 rounded-2xl relative overflow-hidden transition-colors h-full flex flex-col justify-center">
-            <div className="absolute inset-0 bg-gradient-to-br from-accent/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+          <motion.div whileHover={{ y: -5, scale: 1.02 }} className="glass-panel hover:border-accent/40 p-5 rounded-2xl relative overflow-hidden transition-all duration-300 h-full flex flex-col justify-center shadow-lg hover:shadow-[0_0_20px_rgba(34,211,238,0.2)]">
+            <div className="absolute inset-0 bg-gradient-to-br from-accent/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
             <div className="flex items-center gap-3 mb-1">
               <div className="p-2.5 bg-accent/10 border border-accent/20 rounded-xl text-accent"><Users className="w-5 h-5 flex-shrink-0" /></div>
               <div>
@@ -468,9 +471,9 @@ export default function Dashboard() {
         </Link>
 
         {/* Submit Problem Card */}
-        <motion.div whileHover={{ y: -3 }} onClick={() => setShowPropose(true)}
-          className="bg-[#0a0a0a] border border-white/5 hover:border-violet-500/40 p-5 rounded-2xl relative overflow-hidden transition-colors cursor-pointer group h-full flex flex-col justify-center">
-          <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+        <motion.div whileHover={{ y: -5, scale: 1.02 }} onClick={() => setShowPropose(true)}
+          className="glass-panel hover:border-violet-500/40 p-5 rounded-2xl relative overflow-hidden transition-all duration-300 cursor-pointer group h-full flex flex-col justify-center shadow-lg hover:shadow-[0_0_20px_rgba(139,92,246,0.2)]">
+          <div className="absolute inset-0 bg-gradient-to-br from-violet-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
           <div className="flex items-center gap-3 mb-1">
             <div className="p-2.5 bg-violet-500/10 border border-violet-500/20 rounded-xl text-violet-400"><Send className="w-5 h-5" /></div>
             <div>

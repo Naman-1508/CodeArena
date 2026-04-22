@@ -51,7 +51,8 @@ def fetch_problem(problem):
         
         # Parse outputs
         text = html.unescape(content)
-        outputs_raw = re.findall(r"Output(?:</strong>|:)?\s*([^\n<]+)", text, re.IGNORECASE)
+        # Improved regex to capture the value after 'Output:' or 'Output</strong>' more reliably
+        outputs_raw = re.findall(r"(?:Output|Return)(?:</strong>|:)\s*(?:<[^>]+>)*\s*([^\n<]+)", text, re.IGNORECASE)
         outputs = [val.strip() for val in outputs_raw if val.strip() and "Explanation" not in val][:len(testcases_raw)]
         
         testCases = []

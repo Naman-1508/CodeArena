@@ -2,10 +2,12 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Users, Link as LinkIcon, Plus, ArrowRight, ShieldCheck, Video, Code2 } from 'lucide-react';
+import { useAuth } from '@clerk/clerk-react';
 import axios from 'axios';
 
 export default function InterviewLobby() {
   const navigate = useNavigate();
+  const { getToken } = useAuth();
   const [joinToken, setJoinToken] = useState('');
   const [creating, setCreating] = useState(false);
   const [joining, setJoining] = useState(false);
@@ -15,7 +17,7 @@ export default function InterviewLobby() {
     setError(null);
     setCreating(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = await getToken();
       if (!token) throw new Error('You must be logged in to create a room.');
 
       const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/v1/interviews/create`, {}, {
@@ -38,7 +40,7 @@ export default function InterviewLobby() {
     setError(null);
     setJoining(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = await getToken();
       if (!token) throw new Error('You must be logged in to join a room.');
 
       // Extract token in case they pasted the full URL

@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Shield, Users, CheckCircle, ShieldAlert } from 'lucide-react';
 import axios from 'axios';
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '@clerk/clerk-react';
 
 export default function AdminDashboard() {
   const { tab } = useParams();
@@ -14,11 +15,12 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const { getToken } = useAuth();
 
   useEffect(() => {
     const fetchAdminData = async () => {
       try {
-        const token = localStorage.getItem('token');
+        const token = await getToken();
         if (!token) return navigate('/login');
 
         // Check if actually admin implicitly by whether calls succeed
@@ -47,7 +49,7 @@ export default function AdminDashboard() {
 
   const approveProposal = async (id) => {
     try {
-      const token = localStorage.getItem('token');
+      const token = await getToken();
       await axios.post(`${import.meta.env.VITE_API_URL}/api/v1/problems/admin/proposals/${id}/approve`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });

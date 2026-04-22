@@ -2,39 +2,20 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useState, useEffect } from 'react';
 import { Code2, LayoutDashboard, Target, Users, Flame, LogOut, CodeSquare, BookOpen, Trophy, Zap, ShieldAlert, Shield } from 'lucide-react';
+import { useAuth, useUser, UserButton } from '@clerk/clerk-react';
 import axios from 'axios';
 
 export default function Navbar() {
   const location = useLocation();
   const navigate = useNavigate();
-  const token = localStorage.getItem('token');
+  const { getToken, isSignedIn } = useAuth();
+  const { user } = useUser();
   
-  let user = {};
-  try {
-    const userStr = localStorage.getItem('user');
-    if (userStr && userStr !== 'undefined') {
-      user = JSON.parse(userStr);
-    }
-  } catch (e) {
-    console.error('Failed to parse user from local storage:', e);
-  }
-  
-  // Do not show navbar on auth screens or landing page
-  if (['/', '/login', '/register'].includes(location.pathname)) {
-    return null;
-  }
-
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    window.location.href = '/login';
-  };
-
   const [liveStats, setLiveStats] = useState({ xp: 0, streak: 0, level: 1 });
 
   useEffect(() => {
     const fetchStats = async () => {
-      const t = localStorage.getItem('token');
+      const t = await getToken();
       if (!t) return;
       try {
         const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/v1/users/me/stats`, {
@@ -45,6 +26,11 @@ export default function Navbar() {
     };
     fetchStats();
   }, []);
+
+  // Do not show navbar on auth screens or landing page
+  if (['/', '/login', '/register'].includes(location.pathname)) {
+    return null;
+  }
 
   const isAdminRoute = location.pathname.startsWith('/admin');
   let navLinks = [];
@@ -65,7 +51,7 @@ export default function Navbar() {
       { path: '/interview', label: 'Interview', icon: Users },
     ];
 
-    if (user.role === 'Admin') {
+    if (user?.publicMetadata?.role === 'Admin' || user?.unsafeMetadata?.role === 'Admin') {
       navLinks.push({ path: '/admin/analytics', label: 'Admin Panel', icon: ShieldAlert });
     }
   }
@@ -112,7 +98,7 @@ export default function Navbar() {
 
       {/* User Actions */}
       <div className="flex items-center gap-6">
-        {token ? (
+        {isSignedIn ? (
           <>
             {isAdminRoute ? (
               /* Admin Mode — no user gamification stats */
@@ -138,19 +124,20 @@ export default function Navbar() {
             {/* Username + Logout */}
             <div className="flex items-center gap-4">
               <div className="text-right hidden sm:block">
-                <div className="text-sm font-bold text-white">{user.username || 'Admin'}</div>
+                <div className="text-sm font-bold text-white">{user?.username || user?.firstName || 'Developer'}</div>
                 {isAdminRoute
                   ? <div className="text-xs text-indigo-400 font-medium">Administrator</div>
                   : <div className="text-xs text-primary font-medium">Lvl {liveStats.level}</div>
                 }
               </div>
-              <button
-                onClick={handleLogout}
-                className="w-10 h-10 rounded-xl bg-surface hover:bg-red-500/10 hover:text-red-400 border border-white/10 hover:border-red-500/30 flex items-center justify-center transition-all group"
-                title="Sign Out"
-              >
-                <LogOut className="w-5 h-5 text-slate-400 group-hover:text-red-400 transition-colors" />
-              </button>
+              <UserButton 
+                afterSignOutUrl="/"
+                appearance={{
+                  elements: {
+                    avatarBox: "w-10 h-10 rounded-xl border border-white/10"
+                  }
+                }}
+              />
             </div>
           </>
         ) : (
