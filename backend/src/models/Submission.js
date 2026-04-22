@@ -28,6 +28,8 @@ const SubmissionSchema = new Schema({
   output: { type: String },
   passedCount: { type: Number, default: 0 },
   totalCount: { type: Number, default: 0 },
+  runtimePercentile: { type: Number },
+  memoryPercentile: { type: Number },
   // Structured per-test breakdown: exact input/expected/got for each test case
   testResults: { type: Schema.Types.Mixed, default: [] },
 }, { timestamps: true });

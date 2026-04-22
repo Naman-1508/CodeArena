@@ -201,6 +201,34 @@ export const getSubmission = async (req, res) => {
             submission.runtimeMs = result.runtimeMs || 0;
             submission.memoryKb = result.memoryKb || 0;
             submission.testResults = result.testResults || [];
+
+            // Calculate Percentiles for "Pass" submissions
+            if (submission.status === 'Pass' && !submission.isRun) {
+                try {
+                    const stats = await Submission.aggregate([
+                        { $match: { problemId: submission.problemId, status: 'Pass' } },
+                        {
+                            $group: {
+                                _id: null,
+                                totalPasses: { $sum: 1 },
+                                fasterCount: { $sum: { $cond: [{ $lt: ["$runtimeMs", submission.runtimeMs] }, 0, 1] } },
+                                smallerCount: { $sum: { $cond: [{ $lt: ["$memoryKb", submission.memoryKb] }, 0, 1] } }
+                            }
+                        }
+                    ]);
+
+                    if (stats.length > 0) {
+                        const { totalPasses, fasterCount, smallerCount } = stats[0];
+                        submission.runtimePercentile = Math.round((fasterCount / totalPasses) * 100);
+                        submission.memoryPercentile = Math.round((smallerCount / totalPasses) * 100);
+                    } else {
+                        submission.runtimePercentile = 100;
+                        submission.memoryPercentile = 100;
+                    }
+                } catch (statError) {
+                    console.error('Error calculating submission percentiles:', statError);
+                }
+            }
           }
 
           await submission.save();
