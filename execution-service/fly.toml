@@ -1,0 +1,15 @@
+app = "codearena-executor"
+primary_region = "sin"  # Singapore — closest to India
+
+[build]
+
+[env]
+  NODE_ENV = "production"
+
+[[services]]
+  internal_port = 3001
+  protocol = "tcp"
+
+[mounts]
+  source = "docker_socket"
+  destination = "/var/run/docker.sock"

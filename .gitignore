@@ -125,3 +125,7 @@ execution-service/outputs/
 *.out
 __pycache__/
 *.pyc
+
+# Deployment
+deployment_guide.md
+
