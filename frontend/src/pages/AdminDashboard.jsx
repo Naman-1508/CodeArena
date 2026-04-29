@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Shield, Users, CheckCircle, ShieldAlert } from 'lucide-react';
+import { Shield, Users, CheckCircle, ShieldAlert, Flame, Zap } from 'lucide-react';
 import axios from 'axios';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@clerk/clerk-react';
@@ -14,6 +14,11 @@ export default function AdminDashboard() {
   const [interviews, setInterviews] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  
+  // AI Generator state
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [generatingAi, setGeneratingAi] = useState(false);
+
   const navigate = useNavigate();
   const { getToken } = useAuth();
 
@@ -62,6 +67,28 @@ export default function AdminDashboard() {
 
   const rejectProposal = (id) => {
     setProposals(p => p.map(prop => prop._id === id ? { ...prop, status: 'Rejected' } : prop));
+  };
+
+  const handleGenerateAI = async () => {
+    if (!aiPrompt.trim()) return;
+    setGeneratingAi(true);
+    try {
+      const token = await getToken();
+      const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/v1/problems/admin/generate-ai`, 
+        { prompt: aiPrompt },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      alert('Problem generated and saved successfully!');
+      setAiPrompt('');
+      if (res.data.problem) {
+        setProblems(prev => [res.data.problem, ...prev]);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Failed to generate problem');
+    } finally {
+      setGeneratingAi(false);
+    }
   };
 
 
@@ -334,6 +361,57 @@ export default function AdminDashboard() {
                 ))}
               </tbody>
             </table>
+          </div>
+        </motion.div>
+      )}
+
+      {activeTab === 'ai-generator' && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-[#0a0a0a] border border-white/5 rounded-2xl p-8 mt-6 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-orange-500/10 blur-[80px] rounded-full pointer-events-none" />
+          
+          <div className="relative z-10 max-w-2xl mx-auto">
+            <div className="flex items-center gap-4 mb-6">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center shadow-[0_0_20px_rgba(249,115,22,0.3)]">
+                <Flame className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-black text-white tracking-tight">AI Problem Generator</h2>
+                <p className="text-slate-400 text-sm">Describe a coding problem and let AI draft it instantly.</p>
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-bold text-slate-300 mb-2">Problem Description / Prompt</label>
+                <textarea
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                  placeholder="e.g. Create a medium difficulty sliding window problem where the user has to find the maximum sum of a subarray of size K..."
+                  className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-white placeholder:text-slate-600 focus:outline-none focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/50 transition-all min-h-[160px] resize-y"
+                />
+              </div>
+
+              <button
+                onClick={handleGenerateAI}
+                disabled={generatingAi || !aiPrompt.trim()}
+                className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${
+                  generatingAi || !aiPrompt.trim() 
+                  ? 'bg-white/5 text-slate-500 cursor-not-allowed' 
+                  : 'bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-400 hover:to-red-400 text-white shadow-[0_0_20px_rgba(249,115,22,0.3)] hover:shadow-[0_0_30px_rgba(249,115,22,0.5)]'
+                }`}
+              >
+                {generatingAi ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Generating Problem...
+                  </>
+                ) : (
+                  <>
+                    <Zap className="w-5 h-5" /> Generate & Publish
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </motion.div>
       )}

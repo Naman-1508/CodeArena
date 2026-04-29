@@ -12,6 +12,7 @@ import MockInterview from './pages/MockInterview';
 import InterviewLobby from './pages/InterviewLobby';
 import InterviewRoom from './pages/InterviewRoom';
 import AdminDashboard from './pages/AdminDashboard';
+import Profile from './pages/Profile';
 import SSOCallback from './pages/SSOCallback';
 import { ClerkProvider, useUser } from '@clerk/clerk-react';
 
@@ -65,6 +66,7 @@ function App() {
             <Route path="/mock-interview" element={<UserRoute><MockInterview /></UserRoute>} />
             <Route path="/interview"     element={<UserRoute><InterviewLobby /></UserRoute>} />
             <Route path="/interview/:roomId" element={<UserRoute><InterviewRoom /></UserRoute>} />
+            <Route path="/profile"       element={<UserRoute><Profile /></UserRoute>} />
 
             {/* Admin-only routes — non-admins get bounced to /dashboard */}
             <Route path="/admin" element={<AdminRoute><Navigate to="/admin/analytics" replace /></AdminRoute>} />

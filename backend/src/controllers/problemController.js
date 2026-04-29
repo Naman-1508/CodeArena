@@ -427,3 +427,90 @@ CRITICAL RULES:
     res.status(500).json({ message: 'Failed to generate AI response' });
   }
 };
+
+// @route   POST /api/v1/problems/admin/generate-ai
+// @desc    Admin: Generate a problem using AI
+export const generateProblemAI = async (req, res) => {
+  try {
+    if (req.user.role !== 'Admin') {
+      return res.status(403).json({ message: 'Forbidden' });
+    }
+
+    const aiKey = process.env.GROQ_API_KEY;
+    if (!aiKey) {
+      return res.status(500).json({ message: 'Server Groq API Key is missing.' });
+    }
+
+    const { prompt } = req.body;
+    if (!prompt) {
+      return res.status(400).json({ message: 'Prompt is required' });
+    }
+
+    const systemContext = `You are an expert algorithm problem creator for CodeArena. 
+Given the user's prompt, create a programming problem.
+You must return the response as a pure JSON object, without any markdown formatting like \`\`\`json. 
+The JSON object must have the following structure:
+{
+  "title": "Problem Title",
+  "difficulty": "Easy", // Must be Easy, Medium, or Hard
+  "description": "Full markdown description of the problem, including example input and output.",
+  "tags": ["tag1", "tag2"],
+  "initialCode": "// Write your code here\\n",
+  "solutionTemplate": "module.exports = function func() { };",
+  "testCases": []
+}`;
+
+    const response = await axios.post(
+      'https://api.groq.com/openai/v1/chat/completions',
+      {
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          { role: 'system', content: systemContext },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.7,
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${aiKey}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    let generatedText = response.data.choices[0].message.content.trim();
+    
+    // Remove markdown code blocks if AI still adds them
+    if (generatedText.startsWith('\`\`\`json')) {
+      generatedText = generatedText.replace(/^\`\`\`json/, '').replace(/\`\`\`$/, '').trim();
+    } else if (generatedText.startsWith('\`\`\`')) {
+      generatedText = generatedText.replace(/^\`\`\`/, '').replace(/\`\`\`$/, '').trim();
+    }
+
+    let problemData;
+    try {
+      problemData = JSON.parse(generatedText);
+    } catch (parseError) {
+      console.error('Failed to parse AI JSON:', generatedText);
+      return res.status(500).json({ message: 'AI returned invalid JSON format' });
+    }
+
+    const slug = problemData.title.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
+    
+    const newProblem = await Problem.create({
+      title: problemData.title,
+      slug,
+      difficulty: problemData.difficulty || 'Medium',
+      description: problemData.description || 'Generated problem description',
+      tags: problemData.tags || [],
+      initialCode: problemData.initialCode || '// Write your code here\\n',
+      solutionTemplate: problemData.solutionTemplate || 'module.exports = function func() { };',
+      testCases: problemData.testCases || []
+    });
+
+    res.status(201).json({ message: 'Problem generated successfully', problem: newProblem });
+  } catch (error) {
+    console.error('AI Generation Error:', error.response?.data || error.message);
+    res.status(500).json({ message: 'Failed to generate problem via AI' });
+  }
+};

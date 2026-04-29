@@ -1,5 +1,5 @@
 import express from 'express';
-import { getProblems, getProblem, submitProblem, getSubmission, proposeProblem, getProposals, approveProposal, askAIHint } from '../controllers/problemController.js';
+import { getProblems, getProblem, submitProblem, getSubmission, proposeProblem, getProposals, approveProposal, askAIHint, generateProblemAI } from '../controllers/problemController.js';
 import { protect } from '../middlewares/auth.js';
 import Problem from '../models/Problem.js';
 import Submission from '../models/Submission.js';
@@ -11,6 +11,7 @@ const router = express.Router();
 router.get('/problems', getProblems);
 router.get('/problems/admin/proposals', protect, getProposals);
 router.post('/problems/admin/proposals/:id/approve', protect, approveProposal);
+router.post('/problems/admin/generate-ai', protect, generateProblemAI);
 router.post('/problems/propose', protect, proposeProblem);
 router.get('/daily', async (req, res) => {
     try {

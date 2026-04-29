@@ -41,6 +41,7 @@ export default function Navbar() {
       { path: '/admin/proposals', label: 'Problem Proposals', icon: BookOpen },
       { path: '/admin/users', label: 'User Directory', icon: Users },
       { path: '/admin/interviews', label: 'Interviews', icon: Target },
+      { path: '/admin/ai-generator', label: 'AI Generator', icon: Flame },
     ];
   } else {
     navLinks = [
@@ -121,7 +122,7 @@ export default function Navbar() {
               </div>
             )}
 
-            {/* Username + Logout */}
+            {/* Username + Avatar Link */}
             <div className="flex items-center gap-4">
               <div className="text-right hidden sm:block">
                 <div className="text-sm font-bold text-white">{user?.username || user?.firstName || 'Developer'}</div>
@@ -130,14 +131,9 @@ export default function Navbar() {
                   : <div className="text-xs text-primary font-medium">Lvl {liveStats.level}</div>
                 }
               </div>
-              <UserButton 
-                afterSignOutUrl="/"
-                appearance={{
-                  elements: {
-                    avatarBox: "w-10 h-10 rounded-xl border border-white/10"
-                  }
-                }}
-              />
+              <Link to="/profile" className="w-10 h-10 rounded-xl border border-white/10 overflow-hidden hover:border-primary/50 transition-colors cursor-pointer">
+                <img src={user?.imageUrl} alt="Profile" className="w-full h-full object-cover" />
+              </Link>
             </div>
           </>
         ) : (
