@@ -30,16 +30,24 @@ export const protect = async (req, res, next) => {
 
       let user = await User.findOne({ email });
       
+      const clerkRole = clerkUser.publicMetadata?.role || 'User';
+
       if (!user && email) {
         // Upsert logic for new Clerk users logging in for the first time
         user = await User.create({
           username: clerkUser.username || email.split('@')[0],
           email: email,
           passwordHash: 'CLERK_MANAGED', // Password managed by Clerk
-          role: clerkUser.publicMetadata?.role || 'User'
+          role: clerkRole
         });
       } else if (!user) {
         return res.status(401).json({ message: 'Not authorized, user not found' });
+      } else {
+        // Sync role if it was changed in Clerk Dashboard
+        if (user.role !== clerkRole) {
+          user.role = clerkRole;
+          await user.save();
+        }
       }
 
       req.user = user;
