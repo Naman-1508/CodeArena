@@ -429,7 +429,7 @@ CRITICAL RULES:
 };
 
 // @route   POST /api/v1/problems/admin/generate-ai
-// @desc    Admin: Generate a problem using AI
+// @desc    Admin: Ask AI for platform insights or to perform administrative tasks
 export const generateProblemAI = async (req, res) => {
   try {
     if (req.user.role !== 'Admin') {
@@ -441,24 +441,17 @@ export const generateProblemAI = async (req, res) => {
       return res.status(500).json({ message: 'Server Groq API Key is missing.' });
     }
 
-    const { prompt } = req.body;
+    const { prompt, stats } = req.body;
     if (!prompt) {
       return res.status(400).json({ message: 'Prompt is required' });
     }
 
-    const systemContext = `You are an expert algorithm problem creator for CodeArena. 
-Given the user's prompt, create a programming problem.
-You must return the response as a pure JSON object, without any markdown formatting like \`\`\`json. 
-The JSON object must have the following structure:
-{
-  "title": "Problem Title",
-  "difficulty": "Easy", // Must be Easy, Medium, or Hard
-  "description": "Full markdown description of the problem, including example input and output.",
-  "tags": ["tag1", "tag2"],
-  "initialCode": "// Write your code here\\n",
-  "solutionTemplate": "module.exports = function func() { };",
-  "testCases": []
-}`;
+    const systemContext = `You are the CodeArena AI Admin Assistant. 
+You help the platform administrator manage the competitive programming platform, analyze data, and optimize user engagement.
+Here is the current platform statistics summary:
+${JSON.stringify(stats || {}, null, 2)}
+
+Provide a concise, professional, and insightful response to the administrator's request. Format your response in clean markdown.`;
 
     const response = await axios.post(
       'https://api.groq.com/openai/v1/chat/completions',
@@ -469,6 +462,7 @@ The JSON object must have the following structure:
           { role: 'user', content: prompt }
         ],
         temperature: 0.7,
+        max_tokens: 800
       },
       {
         headers: {
@@ -478,39 +472,11 @@ The JSON object must have the following structure:
       }
     );
 
-    let generatedText = response.data.choices[0].message.content.trim();
-    
-    // Remove markdown code blocks if AI still adds them
-    if (generatedText.startsWith('\`\`\`json')) {
-      generatedText = generatedText.replace(/^\`\`\`json/, '').replace(/\`\`\`$/, '').trim();
-    } else if (generatedText.startsWith('\`\`\`')) {
-      generatedText = generatedText.replace(/^\`\`\`/, '').replace(/\`\`\`$/, '').trim();
-    }
+    const generatedText = response.data.choices[0].message.content.trim();
 
-    let problemData;
-    try {
-      problemData = JSON.parse(generatedText);
-    } catch (parseError) {
-      console.error('Failed to parse AI JSON:', generatedText);
-      return res.status(500).json({ message: 'AI returned invalid JSON format' });
-    }
-
-    const slug = problemData.title.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
-    
-    const newProblem = await Problem.create({
-      title: problemData.title,
-      slug,
-      difficulty: problemData.difficulty || 'Medium',
-      description: problemData.description || 'Generated problem description',
-      tags: problemData.tags || [],
-      initialCode: problemData.initialCode || '// Write your code here\\n',
-      solutionTemplate: problemData.solutionTemplate || 'module.exports = function func() { };',
-      testCases: problemData.testCases || []
-    });
-
-    res.status(201).json({ message: 'Problem generated successfully', problem: newProblem });
+    res.status(200).json({ message: 'Success', response: generatedText });
   } catch (error) {
     console.error('AI Generation Error:', error.response?.data || error.message);
-    res.status(500).json({ message: 'Failed to generate problem via AI' });
+    res.status(500).json({ message: 'Failed to generate AI response' });
   }
 };

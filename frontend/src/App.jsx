@@ -38,7 +38,7 @@ function UserRoute({ children }) {
   const { isLoaded, isSignedIn, user } = useUser();
   if (!isLoaded) return <div className="min-h-screen bg-background text-white flex items-center justify-center">Loading...</div>;
   if (!isSignedIn) return <Navigate to="/login" replace />;
-  return getRole(user) === 'Admin' ? <Navigate to="/admin" replace /> : children;
+  return children;
 }
 // ────────────────────────────────────────────────────────────────────
 

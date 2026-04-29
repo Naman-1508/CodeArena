@@ -43,8 +43,8 @@ export default function AdminDashboard() {
         setStats(statsRes.data);
         setInterviews(interviewsRes.data);
       } catch (err) {
-        console.error('Admin access denied:', err);
-        navigate('/dashboard'); // not admin or error
+        console.error('Admin access denied or data fetch failed:', err);
+        // We stay on the page and just show the error or empty states instead of redirecting
       } finally {
         setLoading(false);
       }
@@ -69,27 +69,7 @@ export default function AdminDashboard() {
     setProposals(p => p.map(prop => prop._id === id ? { ...prop, status: 'Rejected' } : prop));
   };
 
-  const handleGenerateAI = async () => {
-    if (!aiPrompt.trim()) return;
-    setGeneratingAi(true);
-    try {
-      const token = await getToken();
-      const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/v1/problems/admin/generate-ai`, 
-        { prompt: aiPrompt },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      alert('Problem generated and saved successfully!');
-      setAiPrompt('');
-      if (res.data.problem) {
-        setProblems(prev => [res.data.problem, ...prev]);
-      }
-    } catch (err) {
-      console.error(err);
-      alert('Failed to generate problem');
-    } finally {
-      setGeneratingAi(false);
-    }
-  };
+
 
 
   if (loading) {
@@ -375,24 +355,40 @@ export default function AdminDashboard() {
                 <Flame className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h2 className="text-2xl font-black text-white tracking-tight">AI Problem Generator</h2>
-                <p className="text-slate-400 text-sm">Describe a coding problem and let AI draft it instantly.</p>
+                <h2 className="text-2xl font-black text-white tracking-tight">AI Platform Assistant</h2>
+                <p className="text-slate-400 text-sm">Analyze stats, request insights, and get administrative recommendations.</p>
               </div>
             </div>
 
             <div className="space-y-6">
               <div>
-                <label className="block text-sm font-bold text-slate-300 mb-2">Problem Description / Prompt</label>
+                <label className="block text-sm font-bold text-slate-300 mb-2">Ask the AI Assistant</label>
                 <textarea
                   value={aiPrompt}
                   onChange={(e) => setAiPrompt(e.target.value)}
-                  placeholder="e.g. Create a medium difficulty sliding window problem where the user has to find the maximum sum of a subarray of size K..."
-                  className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-white placeholder:text-slate-600 focus:outline-none focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/50 transition-all min-h-[160px] resize-y"
+                  placeholder="e.g. Based on the stats, which problems should we add next? Or summarize our user growth."
+                  className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-white placeholder:text-slate-600 focus:outline-none focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/50 transition-all min-h-[120px] resize-y"
                 />
               </div>
 
               <button
-                onClick={handleGenerateAI}
+                onClick={async () => {
+                  if (!aiPrompt.trim()) return;
+                  setGeneratingAi(true);
+                  try {
+                    const token = await getToken();
+                    const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/v1/problems/admin/generate-ai`, 
+                      { prompt: aiPrompt, stats },
+                      { headers: { Authorization: `Bearer ${token}` } }
+                    );
+                    setAiPrompt(res.data.response); // Put response in the text area so they can read it
+                  } catch (err) {
+                    console.error(err);
+                    alert('Failed to get AI response');
+                  } finally {
+                    setGeneratingAi(false);
+                  }
+                }}
                 disabled={generatingAi || !aiPrompt.trim()}
                 className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${
                   generatingAi || !aiPrompt.trim() 
@@ -403,11 +399,11 @@ export default function AdminDashboard() {
                 {generatingAi ? (
                   <>
                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Generating Problem...
+                    Analyzing Data...
                   </>
                 ) : (
                   <>
-                    <Zap className="w-5 h-5" /> Generate & Publish
+                    <Zap className="w-5 h-5" /> Generate Insights
                   </>
                 )}
               </button>
